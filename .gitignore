@@ -1,0 +1,28 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+kerjantara-backend
+
+# Test binaries
+*.test
+*.out
+
+# Environment variables (SANGAT PENTING)
+.env
+.env.development
+.env.local
+.env.*.local
+
+# IDEs & System files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db

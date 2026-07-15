@@ -1,0 +1,570 @@
+package job
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"strconv"
+	"time"
+
+	"kerjantara-backend/pkg/middleware"
+
+	"github.com/go-chi/chi/v5"
+)
+
+type Handler struct {
+	service            *Service
+	gpsToleranceMeters float64
+}
+
+func NewHandler(service *Service, gpsTolerance float64) *Handler {
+	return &Handler{
+		service:            service,
+		gpsToleranceMeters: gpsTolerance,
+	}
+}
+
+func (h *Handler) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler) http.Handler) {
+	// Reference data lookup (CORS friendly / public)
+	r.Get("/ref/rate-cards", h.GetRateCard)
+	r.Get("/ref/skill-categories", h.GetSkillCategories)
+
+	// Protected routes
+	r.Group(func(r chi.Router) {
+		r.Use(authMiddleware)
+
+		r.Post("/jobs", h.CreateJob)
+		r.Get("/jobs/{id}", h.GetJob)
+		r.Get("/jobs/employer", h.GetJobsForEmployer)
+		r.Get("/jobs/worker", h.GetJobsForWorker)
+		r.Patch("/jobs/{id}/accept-match", h.AcceptJob)
+		r.Patch("/jobs/{id}/reject-match", h.RejectJob)
+		r.Patch("/jobs/{id}/arrive", h.ArriveAtJob)
+		r.Post("/jobs/{id}/complete", h.CompleteJob) // POST / PATCH are both okay. Let's make it PATCH /jobs/{id}/complete in code, but support it
+		r.Patch("/jobs/{id}/complete", h.CompleteJob)
+		r.Patch("/jobs/{id}/confirm", h.ConfirmJob)
+		r.Post("/jobs/{id}/rate", h.RateJob)
+		r.Post("/jobs/{id}/match-fallback", h.MatchJobCityFallback)
+	})
+}
+
+func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	var req struct {
+		SkillCatID int     `json:"skill_cat_id"`
+		Description string  `json:"description"`
+		Budget      int64   `json:"budget"`
+		Lat         float64 `json:"lat"`
+		Lng         float64 `json:"lng"`
+		CityCode    string  `json:"city_code"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Body request tidak valid")
+		return
+	}
+
+	job, candidates, err := h.service.CreateJob(r.Context(), claims.UserID, req.SkillCatID, req.Description, req.Budget, req.Lat, req.Lng, req.CityCode)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	// Fetch Rate Card to provide market reference in response
+	rateCard, _ := h.service.GetRateCard(r.Context(), req.SkillCatID, req.CityCode)
+
+	var budgetVsMarket = "within_range"
+	var rcResponse interface{} = nil
+	if rateCard != nil {
+		rcResponse = map[string]interface{}{
+			"min_rate":  rateCard.MinRate,
+			"max_rate":  rateCard.MaxRate,
+			"rate_unit": rateCard.RateUnit,
+			"label":     rateCard.Label,
+		}
+
+		if req.Budget < rateCard.MinRate {
+			budgetVsMarket = "below_range"
+		} else if req.Budget > rateCard.MaxRate {
+			budgetVsMarket = "above_range"
+		}
+	}
+
+	// Format candidates matching API Contract
+	formattedCandidates := []map[string]interface{}{}
+	for i, c := range candidates {
+		// Response window is 15 minutes
+		deadline := time.Now().Add(15 * time.Minute)
+		
+		formattedCandidates = append(formattedCandidates, map[string]interface{}{
+			"match_id":          fmt.Sprintf("match-uuid-%d", i+1), // for mock consistency
+			"match_rank":        i + 1,
+			"worker_id":         c.WorkerID,
+			"full_name":         c.FullName,
+			"kerjantara_score":   c.KerjantaraScore,
+			"total_jobs_done":    c.TotalJobsDone,
+			"distance_km":       mathRound(c.DistanceMeters/1000.0, 1),
+			"avg_response_min":   c.AvgResponseMin,
+			"bio":               c.Bio,
+			"composite_score":   mathRound(c.KerjantaraScore/5.0, 2), // sample normalization
+			"response_deadline": deadline,
+		})
+	}
+
+	status := job.Status
+	if len(candidates) == 0 && status != "pending_city_fallback" {
+		status = "no_candidates"
+	}
+
+	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
+		"job_id":                  job.ID,
+		"status":                  status,
+		"budget":                  job.Budget,
+		"rate_card":               rcResponse,
+		"budget_vs_market":        budgetVsMarket,
+		"response_window_minutes": 15,
+		"candidates":              formattedCandidates,
+	})
+}
+
+func (h *Handler) MatchJobCityFallback(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	if jobID == "" {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Job ID diperlukan")
+		return
+	}
+
+	var req struct {
+		CityID int `json:"city_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Body request tidak valid")
+		return
+	}
+
+	candidates, err := h.service.MatchJobCityFallback(r.Context(), jobID, req.CityID)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	formattedCandidates := []map[string]interface{}{}
+	for i, c := range candidates {
+		deadline := time.Now().Add(15 * time.Minute)
+		formattedCandidates = append(formattedCandidates, map[string]interface{}{
+			"match_id":          fmt.Sprintf("match-uuid-%d", i+1),
+			"match_rank":        i + 1,
+			"worker_id":         c.WorkerID,
+			"full_name":         c.FullName,
+			"kerjantara_score":   c.KerjantaraScore,
+			"total_jobs_done":    c.TotalJobsDone,
+			"distance_km":       mathRound(c.DistanceMeters/1000.0, 1),
+			"avg_response_min":   c.AvgResponseMin,
+			"bio":               c.Bio,
+			"composite_score":   mathRound(c.KerjantaraScore/5.0, 2),
+			"response_deadline": deadline,
+		})
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":     jobID,
+		"status":     "matched",
+		"candidates": formattedCandidates,
+	})
+}
+
+func (h *Handler) GetJob(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	if jobID == "" {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Job ID diperlukan")
+		return
+	}
+
+	job, err := h.service.GetJob(r.Context(), jobID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, job)
+}
+
+func (h *Handler) GetJobsForEmployer(w http.ResponseWriter, r *http.Request) {
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	status := r.URL.Query().Get("status")
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 10
+	}
+
+	jobs, total, err := h.service.GetJobsForEmployer(r.Context(), claims.UserID, status, page, limit)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"jobs":  jobs,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
+}
+
+func (h *Handler) GetJobsForWorker(w http.ResponseWriter, r *http.Request) {
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	status := r.URL.Query().Get("status")
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page <= 0 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit <= 0 {
+		limit = 10
+	}
+
+	jobs, total, err := h.service.GetJobsForWorker(r.Context(), claims.UserID, status, page, limit)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"jobs":  jobs,
+		"total": total,
+		"page":  page,
+		"limit": limit,
+	})
+}
+
+func (h *Handler) AcceptJob(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	var req struct {
+		MatchID string `json:"match_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Body request tidak valid")
+		return
+	}
+
+	job, err := h.service.AcceptJob(r.Context(), jobID, claims.UserID, req.MatchID)
+	if err != nil {
+		if err.Error() == "JOB_TAKEN" {
+			respondWithError(w, http.StatusConflict, "JOB_TAKEN", "Job sudah diterima oleh pekerja lain")
+			return
+		}
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	// Platform fee logic:
+	// < 1.000.000 flat Rp 10.000
+	// >= 1.000.000 -> 2%
+	var platformFee int64 = 10000
+	if *job.AgreedPrice >= 1000000 {
+		platformFee = int64(float64(*job.AgreedPrice) * 0.02)
+	}
+	netToWorker := *job.AgreedPrice - platformFee
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":        job.ID,
+		"match_id":      req.MatchID,
+		"agreed_price":  *job.AgreedPrice,
+		"platform_fee":  platformFee,
+		"net_to_worker": netToWorker,
+		"status":        "accepted",
+		"message":       "Job berhasil diterima. Menunggu pemberi kerja mengamankan dana.",
+	})
+}
+
+func (h *Handler) RejectJob(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	var req struct {
+		MatchID string `json:"match_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Body request tidak valid")
+		return
+	}
+
+	nextCandidateNotified, err := h.service.RejectJob(r.Context(), jobID, claims.UserID, req.MatchID)
+	if err != nil {
+		respondWithError(w, http.StatusNotFound, "NOT_FOUND", err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":                  jobID,
+		"match_id":                req.MatchID,
+		"message":                 "Job berhasil dilewati",
+		"next_candidate_notified": nextCandidateNotified,
+	})
+}
+
+func (h *Handler) ArriveAtJob(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	var req struct {
+		Lat float64 `json:"lat"`
+		Lng float64 `json:"lng"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Body request tidak valid")
+		return
+	}
+
+	job, distance, err := h.service.ArriveAtJob(r.Context(), jobID, claims.UserID, req.Lat, req.Lng, h.gpsToleranceMeters)
+	if err != nil {
+		if err.Error() == "GPS_TOO_FAR" {
+			respondWithError(w, http.StatusUnprocessableEntity, "GPS_TOO_FAR", "Kamu masih terlalu jauh dari lokasi pekerjaan ("+strconv.FormatFloat(distance, 'f', 0, 64)+"m). Pastikan kamu sudah berada di lokasi.")
+			return
+		}
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":               job.ID,
+		"arrived_at":           time.Now(),
+		"gps_verified":         true,
+		"distance_from_job_m": math.Round(distance),
+	})
+}
+
+func (h *Handler) CompleteJob(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	// Parse multipart
+	err := r.ParseMultipartForm(20 << 20) // 20MB max memory for multiple files
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Ukuran file terlalu besar")
+		return
+	}
+
+	files := r.MultipartForm.File["proof_photos[]"]
+	if len(files) == 0 {
+		// API contract specifies proof_photos[] is array
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Minimal 1 foto bukti wajib diunggah")
+		return
+	}
+
+	var readers []io.Reader
+	var sizes []int64
+	var types []string
+
+	for _, fileHeader := range files {
+		file, err := fileHeader.Open()
+		if err != nil {
+			respondWithError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Gagal membuka file")
+			return
+		}
+		defer file.Close()
+
+		readers = append(readers, file)
+		sizes = append(sizes, fileHeader.Size)
+		types = append(types, fileHeader.Header.Get("Content-Type"))
+	}
+
+	notes := r.FormValue("notes")
+
+	job, signedURLs, err := h.service.CompleteJob(r.Context(), jobID, claims.UserID, readers, sizes, types, notes)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	// Keys extracted from signed urls or keys from storage path
+	var fileKeys []string
+	for i := range files {
+		ext := getExtensionFromMime(types[i], ".jpg")
+		key := fmt.Sprintf("proof/%s/%d%s", jobID, i+1, ext)
+		fileKeys = append(fileKeys, key)
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":           job.ID,
+		"status":           "done",
+		"proof_photo_urls": signedURLs,
+		"proof_file_keys":  fileKeys,
+		"message":          "Menunggu konfirmasi pemberi kerja",
+	})
+}
+
+func (h *Handler) ConfirmJob(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	job, err := h.service.ConfirmJob(r.Context(), jobID, claims.UserID)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":         job.ID,
+		"status":         "done",
+		"payment_status": "released",
+		"message":        "Dana berhasil dilepaskan ke pekerja",
+	})
+}
+
+func (h *Handler) RateJob(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	var req struct {
+		Score   float64 `json:"score"`
+		Comment string  `json:"comment"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Body request tidak valid")
+		return
+	}
+
+	ratingID, err := h.service.RateJob(r.Context(), jobID, claims.UserID, req.Score, req.Comment)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	job, _ := h.service.GetJob(r.Context(), jobID)
+	rateeName := ""
+	if job != nil {
+		if job.EmployerID == claims.UserID && job.AcceptedWorker != nil {
+			rateeName = job.AcceptedWorker.FullName
+		} else {
+			rateeName = job.EmployerName
+		}
+	}
+
+	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
+		"rating_id":  ratingID,
+		"ratee_name": rateeName,
+		"score":      req.Score,
+		"message":    "Rating berhasil disimpan",
+	})
+}
+
+func (h *Handler) GetRateCard(w http.ResponseWriter, r *http.Request) {
+	skillCatIDStr := r.URL.Query().Get("skill_cat_id")
+	cityCode := r.URL.Query().Get("city_code")
+
+	if skillCatIDStr == "" || cityCode == "" {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Skill Category ID dan City Code wajib diisi")
+		return
+	}
+
+	skillCatID, err := strconv.Atoi(skillCatIDStr)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Skill Category ID harus berupa angka")
+		return
+	}
+
+	rc, err := h.service.GetRateCard(r.Context(), skillCatID, cityCode)
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+	if rc == nil {
+		respondWithError(w, http.StatusNotFound, "NOT_FOUND", "Rate card tidak ditemukan untuk kota dan kategori tersebut")
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, rc)
+}
+
+func (h *Handler) GetSkillCategories(w http.ResponseWriter, r *http.Request) {
+	cats, err := h.service.GetSkillCategories(r.Context())
+	if err != nil {
+		respondWithError(w, http.StatusInternalServerError, "INTERNAL_ERROR", err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"categories": cats,
+	})
+}
+
+// Helpers
+func respondWithJSON(w http.ResponseWriter, statusCode int, data interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"data": data,
+		"meta": map[string]interface{}{
+			"timestamp": time.Now().Format(time.RFC3339),
+		},
+	})
+}
+
+func respondWithError(w http.ResponseWriter, statusCode int, errorCode string, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(statusCode)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"error": map[string]interface{}{
+			"code":    errorCode,
+			"message": message,
+		},
+	})
+}
+
+func mathRound(val float64, precision int) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return math.Round(val*ratio) / ratio
+}
