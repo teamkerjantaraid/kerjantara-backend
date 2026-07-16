@@ -94,7 +94,7 @@ func main() {
 	// 5. Initialize Modular Repositories and Services
 	// Auth Module
 	authRepo := auth.NewRepository(dbPool)
-	authService := auth.NewService(authRepo, cfg.JWTSecret)
+	authService := auth.NewService(authRepo, cfg.JWTSecret, cfg.SupabaseURL)
 	authHandler := auth.NewHandler(authService)
 
 	// Matching Module

@@ -60,3 +60,8 @@ type ReviewVerificationRequest struct {
 	Decision string `json:"decision" example:"approved" enums:"approved,rejected,resubmit"`
 	Note     string `json:"note" example:"KTP terlihat jelas dan valid"`
 }
+
+// GoogleLoginRequest is the request body for Google OAuth login via Supabase
+type GoogleLoginRequest struct {
+	AccessToken string `json:"access_token" example:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
+}

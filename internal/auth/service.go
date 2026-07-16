@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"path/filepath"
 	"time"
@@ -13,18 +14,22 @@ import (
 	"kerjantara-backend/pkg/middleware"
 	"kerjantara-backend/pkg/storage"
 
+	"github.com/lestrrat-go/jwx/v3/jwk"
+	"github.com/lestrrat-go/jwx/v3/jwt"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type Service struct {
-	repo      *Repository
-	jwtSecret string
+	repo        *Repository
+	jwtSecret   string
+	supabaseURL string
 }
 
-func NewService(repo *Repository, jwtSecret string) *Service {
+func NewService(repo *Repository, jwtSecret string, supabaseURL string) *Service {
 	return &Service{
-		repo:      repo,
-		jwtSecret: jwtSecret,
+		repo:        repo,
+		jwtSecret:   jwtSecret,
+		supabaseURL: supabaseURL,
 	}
 }
 
@@ -70,6 +75,66 @@ func (s *Service) Register(ctx context.Context, fullName, phone, password, role 
 	}
 
 	return createdUser, token, nil
+}
+
+func (s *Service) GoogleLogin(ctx context.Context, supabaseAccessToken string) (*User, string, time.Time, error) {
+	if supabaseAccessToken == "" {
+		return nil, "", time.Time{}, errors.New("access token tidak boleh kosong")
+	}
+
+	// Fetch JWKS dari Supabase dan verifikasi token dengan public key ES256
+	// JWKS di-cache otomatis oleh jwk.NewCache
+	jwksURL := s.supabaseURL + "/auth/v1/.well-known/jwks.json"
+	keySet, err := jwk.Fetch(ctx, jwksURL)
+	if err != nil {
+		log.Printf("[GoogleLogin] gagal fetch JWKS: %v", err)
+		return nil, "", time.Time{}, errors.New("gagal memverifikasi token: tidak dapat mengambil kunci publik")
+	}
+
+	token, err := jwt.ParseString(supabaseAccessToken,
+		jwt.WithKeySet(keySet),
+		jwt.WithValidate(true),
+	)
+	if err != nil {
+		log.Printf("[GoogleLogin] JWT parse error: %v", err)
+		return nil, "", time.Time{}, fmt.Errorf("access token Supabase tidak valid: %w", err)
+	}
+
+	// Ambil sub (= user ID di Supabase, formatnya UUID)
+	sub, ok := token.Subject()
+	if !ok || sub == "" {
+		return nil, "", time.Time{}, errors.New("sub claim tidak ditemukan di token")
+	}
+
+	// Cari user di mst_users berdasarkan id = sub
+	log.Printf("[GoogleLogin] sub dari token: %s", sub)
+	u, err := s.repo.GetUserBySupabaseID(ctx, sub)
+	if err != nil {
+		return nil, "", time.Time{}, fmt.Errorf("gagal mencari user: %w", err)
+	}
+	if u == nil {
+		return nil, "", time.Time{}, errors.New("user tidak ditemukan, silakan registrasi terlebih dahulu")
+	}
+
+	// Tentukan active role — boleh kosong jika user belum assign role
+	activeRole := ""
+	for _, r := range u.Roles {
+		if r == "worker" {
+			activeRole = "worker"
+			break
+		}
+	}
+	if activeRole == "" && len(u.Roles) > 0 {
+		activeRole = u.Roles[0]
+	}
+
+	// Generate JWT app
+	appToken, expiresAt, err := middleware.GenerateToken(u.ID, u.Roles, activeRole, s.jwtSecret)
+	if err != nil {
+		return nil, "", time.Time{}, fmt.Errorf("gagal membuat token: %w", err)
+	}
+
+	return u, appToken, expiresAt, nil
 }
 
 func (s *Service) Login(ctx context.Context, phone, password string) (*User, string, time.Time, error) {

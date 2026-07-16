@@ -414,6 +414,50 @@ func (r *Repository) GetPendingVerifications(ctx context.Context) ([]PendingVeri
 	return result, nil
 }
 
+// GetUserBySupabaseID mencari user di mst_users berdasarkan id (UUID dari Supabase sub claim).
+// Query ini tidak mengambil password_hash karena user Google tidak memilikinya.
+func (r *Repository) GetUserBySupabaseID(ctx context.Context, supabaseID string) (*User, error) {
+	u := &User{}
+
+	err := r.db.QueryRow(ctx, `
+		SELECT u.id, u.verif_status_id, s.code, u.full_name, u.is_active,
+		       u.created_at, u.updated_at
+		FROM kerjantara.mst_users u
+		JOIN kerjantara.ref_verif_statuses s ON u.verif_status_id = s.id
+		WHERE u.id = $1 AND u.deleted_at IS NULL
+	`, supabaseID).Scan(&u.ID, &u.VerifStatusID, &u.VerifStatus, &u.FullName, &u.IsActive,
+		&u.CreatedAt, &u.UpdatedAt)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Get Roles
+	rows, err := r.db.Query(ctx, `
+		SELECT r.code
+		FROM kerjantara.mst_user_roles ur
+		JOIN kerjantara.ref_user_roles r ON ur.role_id = r.id
+		WHERE ur.user_id = $1
+	`, u.ID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return nil, err
+		}
+		u.Roles = append(u.Roles, role)
+	}
+
+	return u, nil
+}
+
 func (r *Repository) ReviewVerification(ctx context.Context, userID string, decision string, note string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

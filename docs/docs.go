@@ -110,6 +110,64 @@ const docTemplate = `{
                 }
             }
         },
+        "/auth/google": {
+            "post": {
+                "description": "Menerima access token dari Supabase (hasil login Google), memverifikasi token, lalu mengembalikan JWT app. User harus sudah terdaftar di mst_users dengan ID yang sama dengan sub claim token Supabase.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Login menggunakan Google via Supabase",
+                "parameters": [
+                    {
+                        "description": "Access token dari Supabase",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_auth.GoogleLoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/docs.SuccessEnvelope"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/internal_auth.LoginResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/docs.ErrorEnvelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/docs.ErrorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/ktp/upload": {
             "post": {
                 "security": [
@@ -1584,6 +1642,15 @@ const docTemplate = `{
                 "role": {
                     "type": "string",
                     "example": "worker"
+                }
+            }
+        },
+        "internal_auth.GoogleLoginRequest": {
+            "type": "object",
+            "properties": {
+                "access_token": {
+                    "type": "string",
+                    "example": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                 }
             }
         },

@@ -32,6 +32,12 @@ definitions:
         example: worker
         type: string
     type: object
+  internal_auth.GoogleLoginRequest:
+    properties:
+      access_token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+    type: object
   internal_auth.KTPUploadResponse:
     properties:
       message:
@@ -429,6 +435,43 @@ paths:
       security:
       - BearerAuth: []
       summary: Ambil daftar verifikasi KTP yang menunggu review
+      tags:
+      - Auth
+  /auth/google:
+    post:
+      consumes:
+      - application/json
+      description: Menerima access token dari Supabase (hasil login Google), memverifikasi
+        token, lalu mengembalikan JWT app. User harus sudah terdaftar di mst_users
+        dengan ID yang sama dengan sub claim token Supabase.
+      parameters:
+      - description: Access token dari Supabase
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.GoogleLoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_auth.LoginResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      summary: Login menggunakan Google via Supabase
       tags:
       - Auth
   /auth/ktp/upload:

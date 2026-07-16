@@ -22,6 +22,7 @@ func (h *Handler) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler)
 	// Public routes
 	r.Post("/auth/register", h.Register)
 	r.Post("/auth/login", h.Login)
+	r.Post("/auth/google", h.GoogleLogin)
 
 	// Protected routes
 	r.Group(func(r chi.Router) {
@@ -120,6 +121,57 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		"user_id":          u.ID,
 		"full_name":        u.FullName,
 		"role":             activeRole, // return the active role context
+		"verif_status":     u.VerifStatus,
+		"token":            token,
+		"token_expires_at": expiresAt,
+	})
+}
+
+// GoogleLogin godoc
+// @Summary      Login menggunakan Google via Supabase
+// @Description  Menerima access token dari Supabase (hasil login Google), memverifikasi token, lalu mengembalikan JWT app. User harus sudah terdaftar di mst_users dengan ID yang sama dengan sub claim token Supabase.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      GoogleLoginRequest  true  "Access token dari Supabase"
+// @Success      200   {object}  docs.SuccessEnvelope{data=LoginResponse}
+// @Failure      401   {object}  docs.ErrorEnvelope
+// @Failure      422   {object}  docs.ErrorEnvelope
+// @Router       /auth/google [post]
+func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		AccessToken string `json:"access_token"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Body request tidak valid")
+		return
+	}
+
+	u, token, expiresAt, err := h.service.GoogleLogin(r.Context(), req.AccessToken)
+	if err != nil {
+		status := http.StatusUnauthorized
+		code := "UNAUTHORIZED"
+		// Jika user tidak ditemukan, kembalikan 404-like message tapi tetap 401 agar tidak leak info
+		respondWithError(w, status, code, err.Error())
+		return
+	}
+
+	activeRole := ""
+	for _, role := range u.Roles {
+		if role == "worker" {
+			activeRole = "worker"
+			break
+		}
+	}
+	if activeRole == "" && len(u.Roles) > 0 {
+		activeRole = u.Roles[0]
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"user_id":          u.ID,
+		"full_name":        u.FullName,
+		"role":             activeRole,
 		"verif_status":     u.VerifStatus,
 		"token":            token,
 		"token_expires_at": expiresAt,

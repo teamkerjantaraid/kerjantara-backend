@@ -11,6 +11,7 @@ type Config struct {
 	DatabaseURL            string
 	SupabaseURL            string
 	SupabaseServiceKey     string
+	SupabaseJWTSecret      string
 	SupabaseStorageBucket  string
 	MidtransServerKey      string
 	JWTSecret              string
@@ -44,6 +45,7 @@ func LoadConfig() (*Config, error) {
 		DatabaseURL:            dbURL,
 		SupabaseURL:            os.Getenv("SUPABASE_URL"),
 		SupabaseServiceKey:     os.Getenv("SUPABASE_SERVICE_KEY"),
+		SupabaseJWTSecret:      os.Getenv("SUPABASE_JWT_SECRET"),
 		SupabaseStorageBucket:  getEnv("SUPABASE_STORAGE_BUCKET", "kerjantara"),
 		MidtransServerKey:      os.Getenv("MIDTRANS_SERVER_KEY"),
 		JWTSecret:              getEnv("JWT_SECRET", "super-secret-key-that-is-at-least-32-chars-long"),
