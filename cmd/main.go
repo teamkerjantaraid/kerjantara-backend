@@ -39,6 +39,9 @@ import (
 // @description Masukkan token JWT dalam format: Bearer <token>
 
 func main() {
+	// Redirect log output to stdout so Railway does not treat logs as errors.
+	log.SetOutput(os.Stdout)
+
 	log.Println("Starting Kerjantara.id Backend Monolith Modular...")
 
 	// 1. Load Configurations
