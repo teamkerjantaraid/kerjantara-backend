@@ -2,44 +2,41 @@ package database
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"os"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var Pool *pgxpool.Pool
+func ConnectDB() (*pgxpool.Pool, error) {
+	dsn := os.Getenv("DATABASE_URL")
+	// contoh: postgres://postgres.xjfddrqebuoatsfbzykl:PASSWORD@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require
 
-func InitDB(databaseURL string) (*pgxpool.Pool, error) {
-	ctx := context.Background()
-
-	config, err := pgxpool.ParseConfig(databaseURL)
+	if dsn == "" {
+		log.Fatal("DATABASE_URL belum di-set")
+	}
+	log.Printf("Menggunakan DSN: %s", dsn)
+	cfg, err := pgxpool.ParseConfig(dsn)
 	if err != nil {
-		return nil, fmt.Errorf("unable to parse database url: %w", err)
+		return nil, err
 	}
 
-	// Anda bisa menambahkan konfigurasi pool di sini jika dibutuhkan
-	// e.g. config.MaxConns = 10
+	// pooler mode transaction (port 6543) tidak support prepared statement caching
+	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+	cfg.MaxConns = 10
+	cfg.MinConns = 2
+
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
 	if err != nil {
-		return nil, fmt.Errorf("unable to connect to database: %w", err)
+		return nil, err
 	}
 
-	err = pool.Ping(ctx)
-	if err != nil {
-		pool.Close()
-		return nil, fmt.Errorf("unable to ping database: %w", err)
+	if err := pool.Ping(context.Background()); err != nil {
+		return nil, err
 	}
 
-	Pool = pool
-	log.Println("Database connection pool established successfully")
+	log.Println("Berhasil konek ke database Supabase")
 	return pool, nil
-}
-
-func CloseDB() {
-	if Pool != nil {
-		Pool.Close()
-		log.Println("Database connection pool closed")
-	}
 }

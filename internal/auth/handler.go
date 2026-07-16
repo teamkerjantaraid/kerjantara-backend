@@ -42,6 +42,16 @@ func (h *Handler) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler)
 	})
 }
 
+// Register godoc
+// @Summary      Registrasi pengguna baru
+// @Description  Membuat akun pengguna baru dengan role worker atau employer. Token JWT langsung dikembalikan setelah registrasi berhasil.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      RegisterRequest  true  "Data registrasi"
+// @Success      201   {object}  docs.SuccessEnvelope{data=RegisterResponse}
+// @Failure      422   {object}  docs.ErrorEnvelope
+// @Router       /auth/register [post]
 func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		FullName string `json:"full_name"`
@@ -69,6 +79,17 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// Login godoc
+// @Summary      Login pengguna
+// @Description  Autentikasi pengguna menggunakan nomor telepon dan password. Mengembalikan JWT Bearer Token yang berlaku 7 hari.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      LoginRequest  true  "Kredensial login"
+// @Success      200   {object}  docs.SuccessEnvelope{data=LoginResponse}
+// @Failure      401   {object}  docs.ErrorEnvelope
+// @Failure      422   {object}  docs.ErrorEnvelope
+// @Router       /auth/login [post]
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Phone    string `json:"phone"`
@@ -105,6 +126,20 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// UploadKTP godoc
+// @Summary      Upload foto KTP dan selfie untuk verifikasi identitas
+// @Description  Menerima dua file gambar: foto KTP dan foto selfie. Batas ukuran masing-masing 10MB. Setelah upload, status verifikasi menjadi 'pending' hingga direview admin.
+// @Tags         Auth
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        ktp_photo     formData  file  true  "Foto KTP (max 10MB)"
+// @Param        selfie_photo  formData  file  true  "Foto selfie dengan KTP (max 10MB)"
+// @Success      200  {object}  docs.SuccessEnvelope{data=KTPUploadResponse}
+// @Failure      401  {object}  docs.ErrorEnvelope
+// @Failure      422  {object}  docs.ErrorEnvelope
+// @Failure      500  {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /auth/ktp/upload [post]
 func (h *Handler) UploadKTP(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
@@ -148,6 +183,16 @@ func (h *Handler) UploadKTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetMe godoc
+// @Summary      Ambil profil pengguna saat ini
+// @Description  Mengembalikan data profil lengkap pengguna yang sedang login berdasarkan JWT token.
+// @Tags         Auth
+// @Produce      json
+// @Success      200  {object}  docs.SuccessEnvelope
+// @Failure      401  {object}  docs.ErrorEnvelope
+// @Failure      500  {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /auth/me [get]
 func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
@@ -164,6 +209,19 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, u)
 }
 
+// ToggleWorker godoc
+// @Summary      Toggle status aktif worker
+// @Description  Mengubah status ketersediaan worker (aktif/tidak aktif) beserta koordinat GPS terkini.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      ToggleWorkerRequest  true  "Status dan koordinat GPS"
+// @Success      200   {object}  docs.SuccessEnvelope
+// @Failure      401   {object}  docs.ErrorEnvelope
+// @Failure      422   {object}  docs.ErrorEnvelope
+// @Failure      500   {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /auth/worker/toggle [patch]
 func (h *Handler) ToggleWorker(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
@@ -194,6 +252,18 @@ func (h *Handler) ToggleWorker(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// ActivateRole godoc
+// @Summary      Aktifkan role baru untuk pengguna
+// @Description  Menambahkan role baru (worker atau employer) ke akun pengguna. Mengembalikan token JWT baru yang mencerminkan role aktif.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      ActivateRoleRequest  true  "Role yang ingin diaktifkan"
+// @Success      200   {object}  docs.SuccessEnvelope
+// @Failure      401   {object}  docs.ErrorEnvelope
+// @Failure      422   {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /auth/roles/activate [post]
 func (h *Handler) ActivateRole(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
@@ -223,6 +293,18 @@ func (h *Handler) ActivateRole(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// SwitchRole godoc
+// @Summary      Ganti role aktif pengguna
+// @Description  Mengganti konteks role aktif pengguna. Pengguna harus sudah mengaktifkan role tersebut sebelumnya. Mengembalikan token JWT baru.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        body  body      SwitchRoleRequest  true  "Role yang ingin diaktifkan"
+// @Success      200   {object}  docs.SuccessEnvelope
+// @Failure      401   {object}  docs.ErrorEnvelope
+// @Failure      422   {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /auth/roles/switch [patch]
 func (h *Handler) SwitchRole(w http.ResponseWriter, r *http.Request) {
 	claims, ok := middleware.GetClaims(r.Context())
 	if !ok {
@@ -252,6 +334,16 @@ func (h *Handler) SwitchRole(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetPendingVerifications godoc
+// @Summary      Ambil daftar verifikasi KTP yang menunggu review
+// @Description  Mengembalikan semua pengajuan verifikasi KTP dengan status 'pending'. Endpoint ini memerlukan role admin.
+// @Tags         Auth
+// @Produce      json
+// @Success      200  {object}  docs.SuccessEnvelope
+// @Failure      401  {object}  docs.ErrorEnvelope
+// @Failure      500  {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /admin/ktp/pending [get]
 func (h *Handler) GetPendingVerifications(w http.ResponseWriter, r *http.Request) {
 	pvs, err := h.service.GetPendingVerifications(r.Context())
 	if err != nil {
@@ -265,6 +357,19 @@ func (h *Handler) GetPendingVerifications(w http.ResponseWriter, r *http.Request
 	})
 }
 
+// ReviewVerification godoc
+// @Summary      Review pengajuan verifikasi KTP pengguna
+// @Description  Admin menyetujui, menolak, atau meminta pengiriman ulang dokumen KTP pengguna. Endpoint ini memerlukan role admin.
+// @Tags         Auth
+// @Accept       json
+// @Produce      json
+// @Param        user_id  path      string                    true  "ID pengguna (UUID)"
+// @Param        body     body      ReviewVerificationRequest  true  "Keputusan review"
+// @Success      200      {object}  docs.SuccessEnvelope
+// @Failure      401      {object}  docs.ErrorEnvelope
+// @Failure      422      {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /admin/ktp/{user_id}/review [patch]
 func (h *Handler) ReviewVerification(w http.ResponseWriter, r *http.Request) {
 	userID := chi.URLParam(r, "user_id")
 	if userID == "" {

@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	_ "kerjantara-backend/docs"
 	"kerjantara-backend/internal/auth"
 	"kerjantara-backend/internal/job"
 	"kerjantara-backend/internal/matching"
@@ -18,13 +19,24 @@ import (
 	"kerjantara-backend/internal/score"
 	"kerjantara-backend/pkg/config"
 	"kerjantara-backend/pkg/database"
+	"kerjantara-backend/pkg/event"
 	customMiddleware "kerjantara-backend/pkg/middleware"
 	"kerjantara-backend/pkg/storage"
-	"kerjantara-backend/pkg/event"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
+
+// @title           Kerjantara Backend API
+// @version         v3.3-hackathon
+// @description     Backend monolith modular untuk platform jasa informal Kerjantara.id. API ini menghubungkan employer dengan worker melalui matching engine berbasis GPS dan skor reputasi.
+// @host            localhost:8080
+// @BasePath        /
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Masukkan token JWT dalam format: Bearer <token>
 
 func main() {
 	log.Println("Starting Kerjantara.id Backend Monolith Modular...")
@@ -40,11 +52,10 @@ func main() {
 	}
 
 	// 2. Initialize Database connection pool (Postgres + PostGIS)
-	dbPool, err := database.InitDB(cfg.DatabaseURL)
+	dbPool, err := database.ConnectDB()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v\n", err)
 	}
-	defer database.CloseDB()
 
 	// 3. Initialize File Storage client (S3 / MinIO / Supabase Storage)
 	storageEndpoint := os.Getenv("STORAGE_ENDPOINT")
@@ -136,6 +147,9 @@ func main() {
 	scoreHandler.RegisterRoutes(r)
 	paymentHandler.RegisterRoutes(r, jwtAuthMiddleware)
 	notificationHandler.RegisterRoutes(r, jwtAuthMiddleware)
+
+	// Swagger UI — only available in non-production environments
+	registerSwaggerRoutes(r, os.Getenv("APP_ENV"))
 
 	// 8. Start HTTP Server with Graceful Shutdown
 	srv := &http.Server{

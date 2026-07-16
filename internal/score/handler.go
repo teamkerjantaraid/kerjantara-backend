@@ -20,6 +20,16 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Get("/workers/{id}/score", h.GetWorkerScore)
 }
 
+// GetWorkerScore godoc
+// @Summary      Lihat skor reputasi pekerja
+// @Description  Mengembalikan KerjantaraScore (rata-rata rating 0.00–5.00) beserta riwayat perubahan skor. kerjantara_score dihitung sebagai rata-rata dari semua rating yang diterima pekerja dari tabel trx_ratings, diperbarui otomatis saat event job.rated diterima. Endpoint ini bersifat publik dan tidak memerlukan autentikasi.
+// @Tags         Score
+// @Produce      json
+// @Param        id   path      string  true  "Worker ID (UUID)"
+// @Success      200  {object}  docs.SuccessEnvelope{data=WorkerScoreData}
+// @Failure      404  {object}  docs.ErrorEnvelope
+// @Failure      422  {object}  docs.ErrorEnvelope
+// @Router       /workers/{id}/score [get]
 func (h *Handler) GetWorkerScore(w http.ResponseWriter, r *http.Request) {
 	workerID := chi.URLParam(r, "id")
 	if workerID == "" {

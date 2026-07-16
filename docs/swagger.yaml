@@ -1,0 +1,1372 @@
+basePath: /
+definitions:
+  docs.ErrorDetail:
+    properties:
+      code:
+        example: VALIDATION_ERROR
+        type: string
+      message:
+        example: Field tidak valid
+        type: string
+    type: object
+  docs.ErrorEnvelope:
+    properties:
+      error:
+        $ref: '#/definitions/docs.ErrorDetail'
+    type: object
+  docs.MetaInfo:
+    properties:
+      timestamp:
+        example: "2024-01-15T08:30:00+07:00"
+        type: string
+    type: object
+  docs.SuccessEnvelope:
+    properties:
+      data: {}
+      meta:
+        $ref: '#/definitions/docs.MetaInfo'
+    type: object
+  internal_auth.ActivateRoleRequest:
+    properties:
+      role:
+        example: worker
+        type: string
+    type: object
+  internal_auth.KTPUploadResponse:
+    properties:
+      message:
+        example: KTP berhasil diupload, menunggu review
+        type: string
+      verif_status:
+        example: pending
+        type: string
+    type: object
+  internal_auth.LoginRequest:
+    properties:
+      password:
+        example: P@ssw0rd123
+        type: string
+      phone:
+        example: "081234567890"
+        type: string
+    type: object
+  internal_auth.LoginResponse:
+    properties:
+      full_name:
+        example: Budi Santoso
+        type: string
+      role:
+        example: worker
+        type: string
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      token_expires_at:
+        example: "2024-01-15T09:30:00+07:00"
+        type: string
+      user_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      verif_status:
+        example: unverified
+        type: string
+    type: object
+  internal_auth.RegisterRequest:
+    properties:
+      full_name:
+        example: Budi Santoso
+        type: string
+      password:
+        example: P@ssw0rd123
+        type: string
+      phone:
+        example: "081234567890"
+        type: string
+      role:
+        enum:
+        - worker
+        - employer
+        example: worker
+        type: string
+    type: object
+  internal_auth.RegisterResponse:
+    properties:
+      full_name:
+        example: Budi Santoso
+        type: string
+      role:
+        example: worker
+        type: string
+      token:
+        example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        type: string
+      user_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  internal_auth.ReviewVerificationRequest:
+    properties:
+      decision:
+        enum:
+        - approved
+        - rejected
+        - resubmit
+        example: approved
+        type: string
+      note:
+        example: KTP terlihat jelas dan valid
+        type: string
+    type: object
+  internal_auth.SwitchRoleRequest:
+    properties:
+      role:
+        example: employer
+        type: string
+    type: object
+  internal_auth.ToggleWorkerRequest:
+    properties:
+      is_active:
+        example: true
+        type: boolean
+      lat:
+        example: -6.2088
+        type: number
+      lng:
+        example: 106.8456
+        type: number
+    type: object
+  internal_job.AcceptMatchRequest:
+    properties:
+      match_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  internal_job.ArriveRequest:
+    properties:
+      lat:
+        example: -6.2088
+        type: number
+      lng:
+        example: 106.8456
+        type: number
+    type: object
+  internal_job.CandidateItem:
+    properties:
+      avg_response_min:
+        example: 5.2
+        type: number
+      bio:
+        example: Tukang las berpengalaman 10 tahun
+        type: string
+      composite_score:
+        example: 0.96
+        type: number
+      distance_km:
+        example: 1.5
+        type: number
+      full_name:
+        example: Budi Santoso
+        type: string
+      kerjantara_score:
+        example: 4.8
+        type: number
+      match_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+      match_rank:
+        example: 1
+        type: integer
+      response_deadline:
+        example: "2024-01-15T08:45:00+07:00"
+        type: string
+      total_jobs_done:
+        example: 42
+        type: integer
+      worker_id:
+        example: 550e8400-e29b-41d4-a716-446655440001
+        type: string
+    type: object
+  internal_job.CompleteJobResponse:
+    properties:
+      job_id:
+        example: 550e8400-e29b-41d4-a716-446655440002
+        type: string
+      message:
+        example: Menunggu konfirmasi pemberi kerja
+        type: string
+      proof_file_keys:
+        items:
+          type: string
+        type: array
+      proof_photo_urls:
+        items:
+          type: string
+        type: array
+      status:
+        example: done
+        type: string
+    type: object
+  internal_job.CreateJobRequest:
+    properties:
+      budget:
+        example: 500000
+        type: integer
+      city_code:
+        example: JKT
+        type: string
+      description:
+        example: Butuh tukang las untuk pagar rumah
+        type: string
+      lat:
+        example: -6.2088
+        type: number
+      lng:
+        example: 106.8456
+        type: number
+      skill_cat_id:
+        example: 3
+        type: integer
+    type: object
+  internal_job.CreateJobResponse:
+    properties:
+      budget:
+        example: 500000
+        type: integer
+      budget_vs_market:
+        example: within_range
+        type: string
+      candidates:
+        items:
+          $ref: '#/definitions/internal_job.CandidateItem'
+        type: array
+      job_id:
+        example: 550e8400-e29b-41d4-a716-446655440002
+        type: string
+      rate_card:
+        $ref: '#/definitions/internal_job.RateCardResponse'
+      response_window_minutes:
+        example: 15
+        type: integer
+      status:
+        example: matched
+        type: string
+    type: object
+  internal_job.MatchFallbackRequest:
+    properties:
+      city_id:
+        example: 1
+        type: integer
+    type: object
+  internal_job.RateCardResponse:
+    properties:
+      label:
+        example: 'Harga wajar Tukang Las di JKT: Rp 300000 – 700000/hari'
+        type: string
+      max_rate:
+        example: 700000
+        type: integer
+      min_rate:
+        example: 300000
+        type: integer
+      rate_unit:
+        example: per_day
+        type: string
+    type: object
+  internal_job.RateJobRequest:
+    properties:
+      comment:
+        example: Pekerja sangat profesional dan tepat waktu
+        type: string
+      score:
+        example: 4.5
+        type: number
+    type: object
+  internal_job.RejectMatchRequest:
+    properties:
+      match_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  internal_payment.CreatePaymentRequest:
+    properties:
+      job_id:
+        example: 550e8400-e29b-41d4-a716-446655440000
+        type: string
+    type: object
+  internal_payment.CreatePaymentResponse:
+    properties:
+      agreed_price:
+        example: 500000
+        type: integer
+      fee_note:
+        example: Biaya layanan Rp 10.000 (transaksi di bawah Rp 1.000.000)
+        type: string
+      midtrans_order_id:
+        example: order-550e8400-1234
+        type: string
+      net_to_worker:
+        example: 490000
+        type: integer
+      payment_id:
+        example: a1b2c3d4-e5f6-7890-abcd-ef1234567890
+        type: string
+      platform_fee:
+        example: 10000
+        type: integer
+      snap_token:
+        example: snap-token-abc123
+        type: string
+      total_charged_to_employer:
+        example: 500000
+        type: integer
+    type: object
+  internal_payment.WebhookRequest:
+    properties:
+      fraud_status:
+        example: accept
+        type: string
+      order_id:
+        example: order-550e8400-1234
+        type: string
+      transaction_status:
+        example: settlement
+        type: string
+    type: object
+  internal_score.ScoreHistoryItem:
+    properties:
+      created_at:
+        type: string
+      delta:
+        type: number
+      job_id:
+        type: string
+      score_after:
+        type: number
+      score_before:
+        type: number
+    type: object
+  internal_score.WorkerScoreData:
+    properties:
+      full_name:
+        type: string
+      history:
+        items:
+          $ref: '#/definitions/internal_score.ScoreHistoryItem'
+        type: array
+      kerjantara_score:
+        type: number
+      total_jobs_done:
+        type: integer
+      worker_id:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: Backend monolith modular untuk platform jasa informal Kerjantara.id.
+    API ini menghubungkan employer dengan worker melalui matching engine berbasis
+    GPS dan skor reputasi.
+  title: Kerjantara Backend API
+  version: v3.3-hackathon
+paths:
+  /admin/ktp/{user_id}/review:
+    patch:
+      consumes:
+      - application/json
+      description: Admin menyetujui, menolak, atau meminta pengiriman ulang dokumen
+        KTP pengguna. Endpoint ini memerlukan role admin.
+      parameters:
+      - description: ID pengguna (UUID)
+        in: path
+        name: user_id
+        required: true
+        type: string
+      - description: Keputusan review
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.ReviewVerificationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Review pengajuan verifikasi KTP pengguna
+      tags:
+      - Auth
+  /admin/ktp/pending:
+    get:
+      description: Mengembalikan semua pengajuan verifikasi KTP dengan status 'pending'.
+        Endpoint ini memerlukan role admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Ambil daftar verifikasi KTP yang menunggu review
+      tags:
+      - Auth
+  /auth/ktp/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 'Menerima dua file gambar: foto KTP dan foto selfie. Batas ukuran
+        masing-masing 10MB. Setelah upload, status verifikasi menjadi ''pending''
+        hingga direview admin.'
+      parameters:
+      - description: Foto KTP (max 10MB)
+        in: formData
+        name: ktp_photo
+        required: true
+        type: file
+      - description: Foto selfie dengan KTP (max 10MB)
+        in: formData
+        name: selfie_photo
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_auth.KTPUploadResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Upload foto KTP dan selfie untuk verifikasi identitas
+      tags:
+      - Auth
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Autentikasi pengguna menggunakan nomor telepon dan password. Mengembalikan
+        JWT Bearer Token yang berlaku 7 hari.
+      parameters:
+      - description: Kredensial login
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_auth.LoginResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      summary: Login pengguna
+      tags:
+      - Auth
+  /auth/me:
+    get:
+      description: Mengembalikan data profil lengkap pengguna yang sedang login berdasarkan
+        JWT token.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Ambil profil pengguna saat ini
+      tags:
+      - Auth
+  /auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Membuat akun pengguna baru dengan role worker atau employer. Token
+        JWT langsung dikembalikan setelah registrasi berhasil.
+      parameters:
+      - description: Data registrasi
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_auth.RegisterResponse'
+              type: object
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      summary: Registrasi pengguna baru
+      tags:
+      - Auth
+  /auth/roles/activate:
+    post:
+      consumes:
+      - application/json
+      description: Menambahkan role baru (worker atau employer) ke akun pengguna.
+        Mengembalikan token JWT baru yang mencerminkan role aktif.
+      parameters:
+      - description: Role yang ingin diaktifkan
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.ActivateRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Aktifkan role baru untuk pengguna
+      tags:
+      - Auth
+  /auth/roles/switch:
+    patch:
+      consumes:
+      - application/json
+      description: Mengganti konteks role aktif pengguna. Pengguna harus sudah mengaktifkan
+        role tersebut sebelumnya. Mengembalikan token JWT baru.
+      parameters:
+      - description: Role yang ingin diaktifkan
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.SwitchRoleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Ganti role aktif pengguna
+      tags:
+      - Auth
+  /auth/worker/toggle:
+    patch:
+      consumes:
+      - application/json
+      description: Mengubah status ketersediaan worker (aktif/tidak aktif) beserta
+        koordinat GPS terkini.
+      parameters:
+      - description: Status dan koordinat GPS
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_auth.ToggleWorkerRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Toggle status aktif worker
+      tags:
+      - Auth
+  /jobs:
+    post:
+      consumes:
+      - application/json
+      description: Employer membuat permintaan pekerjaan. Sistem akan menjalankan
+        MatchingEngine untuk menemukan maksimal 3 kandidat worker berdasarkan GPS,
+        skor, dan keahlian.
+      parameters:
+      - description: Data pekerjaan
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_job.CreateJobRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_job.CreateJobResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Buat pekerjaan baru
+      tags:
+      - Job
+  /jobs/{id}:
+    get:
+      description: Mengembalikan detail lengkap sebuah pekerjaan termasuk status,
+        kandidat, dan informasi pekerja yang diterima.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Ambil detail pekerjaan berdasarkan ID
+      tags:
+      - Job
+  /jobs/{id}/accept-match:
+    patch:
+      consumes:
+      - application/json
+      description: Worker menerima tawaran match dari employer. Hanya satu worker
+        yang bisa menerima per job. Jika job sudah diambil worker lain, akan dikembalikan
+        error 409.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Match ID yang diterima
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_job.AcceptMatchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "409":
+          description: JOB_TAKEN — job sudah diterima worker lain
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Worker menerima tawaran pekerjaan
+      tags:
+      - Job
+  /jobs/{id}/arrive:
+    patch:
+      consumes:
+      - application/json
+      description: Worker mengirimkan koordinat GPS saat tiba di lokasi. Sistem memverifikasi
+        jarak terhadap lokasi job. Jika terlalu jauh, dikembalikan error 422 dengan
+        kode GPS_TOO_FAR.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Koordinat GPS saat tiba
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_job.ArriveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: GPS_TOO_FAR — lokasi terlalu jauh dari titik pekerjaan
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Worker menandai kedatangan di lokasi pekerjaan
+      tags:
+      - Job
+  /jobs/{id}/complete:
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Worker mengunggah bukti foto penyelesaian pekerjaan via PATCH.
+        Minimal 1 foto wajib diunggah, total maksimal 20MB.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Foto bukti pekerjaan (minimal 1)
+        in: formData
+        name: proof_photos[]
+        required: true
+        type: file
+      - description: Catatan penyelesaian
+        in: formData
+        name: notes
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_job.CompleteJobResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Tandai pekerjaan selesai — PATCH (worker)
+      tags:
+      - Job
+  /jobs/{id}/confirm:
+    patch:
+      description: Employer mengkonfirmasi bahwa pekerjaan telah selesai dikerjakan.
+        Dana escrow dilepaskan ke worker setelah konfirmasi.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Employer mengkonfirmasi pekerjaan selesai
+      tags:
+      - Job
+  /jobs/{id}/match-fallback:
+    post:
+      consumes:
+      - application/json
+      description: Memperluas pencarian kandidat ke seluruh kota ketika matching radius
+        awal tidak menghasilkan kandidat yang cukup.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: City ID untuk fallback
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_job.MatchFallbackRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Fallback matching ke level kota
+      tags:
+      - Job
+  /jobs/{id}/rate:
+    post:
+      consumes:
+      - application/json
+      description: Baik employer maupun worker dapat memberikan rating setelah pekerjaan
+        selesai. Employer menilai worker, worker menilai employer. Skor 1.0–5.0 skala
+        bintang.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Rating dan komentar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_job.RateJobRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Beri rating untuk pekerjaan yang telah selesai
+      tags:
+      - Job
+  /jobs/{id}/reject-match:
+    patch:
+      consumes:
+      - application/json
+      description: Worker menolak match dari employer. Sistem akan otomatis memberitahu
+        kandidat berikutnya jika ada.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Match ID yang ditolak
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_job.RejectMatchRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Worker menolak tawaran pekerjaan
+      tags:
+      - Job
+  /jobs/employer:
+    get:
+      description: Mengembalikan daftar pekerjaan yang dibuat oleh employer yang sedang
+        login, dengan opsi filter status dan paginasi.
+      parameters:
+      - description: 'Filter status pekerjaan (contoh: matched, done, cancelled)'
+        in: query
+        name: status
+        type: string
+      - description: 'Halaman (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Jumlah per halaman (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Ambil daftar pekerjaan milik employer
+      tags:
+      - Job
+  /jobs/worker:
+    get:
+      description: Mengembalikan daftar pekerjaan yang terhubung dengan worker yang
+        sedang login, dengan opsi filter status dan paginasi.
+      parameters:
+      - description: 'Filter status pekerjaan (contoh: accepted, done)'
+        in: query
+        name: status
+        type: string
+      - description: 'Halaman (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Jumlah per halaman (default: 10)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Ambil daftar pekerjaan untuk worker
+      tags:
+      - Job
+  /payments/{job_id}:
+    get:
+      description: Mengembalikan detail pembayaran escrow untuk job tertentu, termasuk
+        status escrow (pending, held, released, refunded), amount, platform_fee, dan
+        net_to_worker.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: job_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Cek status pembayaran berdasarkan Job ID
+      tags:
+      - Payment
+  /payments/{job_id}/milestones:
+    get:
+      description: Mengembalikan array milestone pembayaran harian untuk job multi-hari
+        (duration_days > 1). Setiap milestone merepresentasikan pembayaran per hari
+        yang dirilis secara bertahap setelah employer mengkonfirmasi penyelesaian
+        hari tersebut.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: job_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Ambil daftar milestone pembayaran harian
+      tags:
+      - Payment
+  /payments/create:
+    post:
+      consumes:
+      - application/json
+      description: 'Employer membuat pembayaran escrow melalui Midtrans Snap. Logika
+        platform fee: transaksi di bawah Rp 1.000.000 dikenakan flat Rp 10.000; transaksi
+        Rp 1.000.000 ke atas dikenakan 2% dari agreed_price.'
+      parameters:
+      - description: Job ID yang akan dibayar
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_payment.CreatePaymentRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_payment.CreatePaymentResponse'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Buat pembayaran untuk job yang sudah diterima
+      tags:
+      - Payment
+  /payments/webhook:
+    post:
+      consumes:
+      - application/json
+      description: Endpoint ini dipanggil otomatis oleh server Midtrans setelah transaksi
+        berhasil atau gagal. Tidak memerlukan autentikasi JWT.
+      parameters:
+      - description: Payload notifikasi Midtrans
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/internal_payment.WebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      summary: Webhook notifikasi pembayaran dari Midtrans
+      tags:
+      - Payment
+  /ref/rate-cards:
+    get:
+      description: Mengembalikan harga min/max pasar untuk kategori skill tertentu
+        di kota tertentu. Endpoint publik, tidak memerlukan autentikasi.
+      parameters:
+      - description: ID kategori skill
+        in: query
+        name: skill_cat_id
+        required: true
+        type: integer
+      - description: 'Kode kota (contoh: JKT)'
+        in: query
+        name: city_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_job.RateCardResponse'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      summary: Ambil rate card pasar untuk kategori skill dan kota
+      tags:
+      - Job
+  /ref/skill-categories:
+    get:
+      description: Mengembalikan seluruh kategori skill yang tersedia di platform.
+        Endpoint publik, tidak memerlukan autentikasi.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  items:
+                    additionalProperties: true
+                    type: object
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      summary: Ambil daftar semua kategori skill
+      tags:
+      - Job
+  /workers/{id}/score:
+    get:
+      description: Mengembalikan KerjantaraScore (rata-rata rating 0.00–5.00) beserta
+        riwayat perubahan skor. kerjantara_score dihitung sebagai rata-rata dari semua
+        rating yang diterima pekerja dari tabel trx_ratings, diperbarui otomatis saat
+        event job.rated diterima. Endpoint ini bersifat publik dan tidak memerlukan
+        autentikasi.
+      parameters:
+      - description: Worker ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/docs.SuccessEnvelope'
+            - properties:
+                data:
+                  $ref: '#/definitions/internal_score.WorkerScoreData'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      summary: Lihat skor reputasi pekerja
+      tags:
+      - Score
+  /ws:
+    get:
+      description: 'Upgrade HTTP GET ke protokol WebSocket. JWT dikirim via query
+        parameter ?token=<jwt> karena header Authorization tidak didukung saat WebSocket
+        upgrade. Setelah koneksi berhasil, server mengirim pesan JSON: {"type":"<event>","payload":{...},"timestamp":"<RFC3339>"}.
+        Event types: job.matched (notif ke worker saat job cocok), job.accepted (notif
+        ke employer saat worker menerima), job.completed (notif dari worker ke employer
+        untuk konfirmasi), job.completed (notif konfirmasi selesai), payment.released
+        (notif ke worker saat pembayaran dilepas), ktp.uploaded (broadcast ke admin
+        saat KTP diunggah). Koneksi otomatis ditutup jika token tidak valid (HTTP
+        401 sebelum upgrade).'
+      parameters:
+      - description: JWT Bearer Token
+        in: query
+        name: token
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "101":
+          description: Switching Protocols — WebSocket connection established
+          schema:
+            type: string
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Koneksi WebSocket untuk notifikasi real-time
+      tags:
+      - Notification
+securityDefinitions:
+  BearerAuth:
+    description: 'Masukkan token JWT dalam format: Bearer <token>'
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

@@ -5,6 +5,8 @@ import (
 	"io"
 	"net/http"
 
+	_ "kerjantara-backend/internal/docs"
+
 	"github.com/go-chi/chi/v5"
 )
 
@@ -29,6 +31,18 @@ func (h *Handler) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler)
 	})
 }
 
+// CreatePayment godoc
+// @Summary      Buat pembayaran untuk job yang sudah diterima
+// @Description  Employer membuat pembayaran escrow melalui Midtrans Snap. Logika platform fee: transaksi di bawah Rp 1.000.000 dikenakan flat Rp 10.000; transaksi Rp 1.000.000 ke atas dikenakan 2% dari agreed_price.
+// @Tags         Payment
+// @Accept       json
+// @Produce      json
+// @Param        body  body      CreatePaymentRequest  true  "Job ID yang akan dibayar"
+// @Success      201   {object}  docs.SuccessEnvelope{data=CreatePaymentResponse}
+// @Failure      401   {object}  docs.ErrorEnvelope
+// @Failure      422   {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /payments/create [post]
 func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		JobID string `json:"job_id"`
@@ -63,6 +77,18 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// GetPaymentStatus godoc
+// @Summary      Cek status pembayaran berdasarkan Job ID
+// @Description  Mengembalikan detail pembayaran escrow untuk job tertentu, termasuk status escrow (pending, held, released, refunded), amount, platform_fee, dan net_to_worker.
+// @Tags         Payment
+// @Produce      json
+// @Param        job_id  path      string  true  "Job ID (UUID)"
+// @Success      200     {object}  docs.SuccessEnvelope
+// @Failure      401     {object}  docs.ErrorEnvelope
+// @Failure      404     {object}  docs.ErrorEnvelope
+// @Failure      500     {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /payments/{job_id} [get]
 func (h *Handler) GetPaymentStatus(w http.ResponseWriter, r *http.Request) {
 	jobID := chi.URLParam(r, "job_id")
 	if jobID == "" {
@@ -83,6 +109,17 @@ func (h *Handler) GetPaymentStatus(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, p)
 }
 
+// GetMilestones godoc
+// @Summary      Ambil daftar milestone pembayaran harian
+// @Description  Mengembalikan array milestone pembayaran harian untuk job multi-hari (duration_days > 1). Setiap milestone merepresentasikan pembayaran per hari yang dirilis secara bertahap setelah employer mengkonfirmasi penyelesaian hari tersebut.
+// @Tags         Payment
+// @Produce      json
+// @Param        job_id  path      string  true  "Job ID (UUID)"
+// @Success      200     {object}  docs.SuccessEnvelope
+// @Failure      401     {object}  docs.ErrorEnvelope
+// @Failure      500     {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /payments/{job_id}/milestones [get]
 func (h *Handler) GetMilestones(w http.ResponseWriter, r *http.Request) {
 	jobID := chi.URLParam(r, "job_id")
 	if jobID == "" {
@@ -99,6 +136,18 @@ func (h *Handler) GetMilestones(w http.ResponseWriter, r *http.Request) {
 	respondWithJSON(w, http.StatusOK, milestones)
 }
 
+// HandleWebhook godoc
+// @Summary      Webhook notifikasi pembayaran dari Midtrans
+// @Description  Endpoint ini dipanggil otomatis oleh server Midtrans setelah transaksi berhasil atau gagal. Tidak memerlukan autentikasi JWT.
+// @Tags         Payment
+// @Accept       json
+// @Produce      json
+// @Param        body  body      WebhookRequest  true  "Payload notifikasi Midtrans"
+// @Success      200   {object}  docs.SuccessEnvelope
+// @Failure      400   {object}  docs.ErrorEnvelope
+// @Failure      422   {object}  docs.ErrorEnvelope
+// @Failure      500   {object}  docs.ErrorEnvelope
+// @Router       /payments/webhook [post]
 func (h *Handler) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		OrderID           string `json:"order_id"`
