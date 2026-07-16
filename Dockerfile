@@ -14,7 +14,7 @@ RUN go mod download
 COPY . .
 
 # Build production binary
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o kerjantara-backend cmd/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o kerjantara-backend ./cmd/
 
 # Stage 2: Run the binary in a clean environment
 FROM alpine:3.18
