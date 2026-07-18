@@ -53,16 +53,17 @@ func (s *Service) CreatePayment(ctx context.Context, jobID string) (*Payment, er
 	if amount >= 1000000 {
 		platformFee = int64(float64(amount) * 0.02)
 	}
-	netToWorker := amount - platformFee
+	totalCharged := amount + platformFee
+	netToWorker := amount
 
 	// Generate Order ID
 	orderID := fmt.Sprintf("KJT-%s-%s", time.Now().Format("20060102"), jobID[:8])
 
 	snapToken := "mock-snap-token-" + jobID[:8]
-	
+
 	// Panggil Midtrans Snap API jika Server Key disediakan
 	if s.midtransServerKey != "" && s.midtransServerKey != "SB-Mid-server-xxxx" {
-		token, err := s.callMidtransSnap(orderID, amount)
+		token, err := s.callMidtransSnap(orderID, totalCharged)
 		if err == nil {
 			snapToken = token
 		} else {

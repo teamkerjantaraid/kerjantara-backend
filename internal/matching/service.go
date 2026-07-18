@@ -85,8 +85,8 @@ func (s *Service) MatchJob(ctx context.Context, jobID string) ([]Candidate, erro
 		matches[i].Deadline = deadline
 	}
 
-	// Simpan ke DB
-	err = s.repo.SaveJobMatches(ctx, matches)
+	// Simpan ke DB dan dapatkan match IDs
+	savedMatches, err := s.repo.SaveJobMatches(ctx, matches)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save job matches: %w", err)
 	}
@@ -97,15 +97,20 @@ func (s *Service) MatchJob(ctx context.Context, jobID string) ([]Candidate, erro
 		return nil, fmt.Errorf("failed to update job status: %w", err)
 	}
 
-	// Ambil kandidat terpilih saja untuk dikembalikan (sesuai matches)
-	var matchedCandidates []Candidate
-	matchedMap := make(map[string]float64) // workerID → compositeScore
-	for _, m := range matches {
-		matchedMap[m.WorkerID] = m.CompositeScore
+	// Build maps: workerID → compositeScore, workerID → matchID
+	scoreMap := make(map[string]float64)
+	matchIDMap := make(map[string]string)
+	for _, m := range savedMatches {
+		scoreMap[m.WorkerID] = m.CompositeScore
+		matchIDMap[m.WorkerID] = m.ID
 	}
+
+	// Ambil kandidat terpilih saja untuk dikembalikan
+	var matchedCandidates []Candidate
 	for i := range candidates {
-		if score, ok := matchedMap[candidates[i].WorkerID]; ok {
+		if score, ok := scoreMap[candidates[i].WorkerID]; ok {
 			candidates[i].CompositeScore = score
+			candidates[i].MatchID = matchIDMap[candidates[i].WorkerID]
 			matchedCandidates = append(matchedCandidates, candidates[i])
 		}
 	}
@@ -165,8 +170,8 @@ func (s *Service) MatchJobCityFallback(ctx context.Context, jobID string, cityID
 		matches[i].Deadline = deadline
 	}
 
-	// Simpan ke DB
-	err = s.repo.SaveJobMatches(ctx, matches)
+	// Simpan ke DB dan dapatkan match IDs
+	savedMatches, err := s.repo.SaveJobMatches(ctx, matches)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save job matches: %w", err)
 	}
@@ -177,15 +182,18 @@ func (s *Service) MatchJobCityFallback(ctx context.Context, jobID string, cityID
 		return nil, fmt.Errorf("failed to update job status: %w", err)
 	}
 
-	// Filter & sort candidates
-	var matchedCandidates []Candidate
-	matchedMap := make(map[string]float64)
-	for _, m := range matches {
-		matchedMap[m.WorkerID] = m.CompositeScore
+	// Filter & sort candidates with match IDs
+	scoreMap := make(map[string]float64)
+	matchIDMap := make(map[string]string)
+	for _, m := range savedMatches {
+		scoreMap[m.WorkerID] = m.CompositeScore
+		matchIDMap[m.WorkerID] = m.ID
 	}
+	var matchedCandidates []Candidate
 	for i := range candidates {
-		if score, ok := matchedMap[candidates[i].WorkerID]; ok {
+		if score, ok := scoreMap[candidates[i].WorkerID]; ok {
 			candidates[i].CompositeScore = score
+			candidates[i].MatchID = matchIDMap[candidates[i].WorkerID]
 			matchedCandidates = append(matchedCandidates, candidates[i])
 		}
 	}

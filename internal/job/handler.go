@@ -175,7 +175,7 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		deadline := time.Now().Add(15 * time.Minute)
 		
 		formattedCandidates = append(formattedCandidates, map[string]interface{}{
-			"match_id":          fmt.Sprintf("match-uuid-%d", i+1), // for mock consistency
+			"match_id":          c.MatchID,
 			"match_rank":        i + 1,
 			"worker_id":         c.WorkerID,
 			"full_name":         c.FullName,
@@ -244,7 +244,7 @@ func (h *Handler) MatchJobCityFallback(w http.ResponseWriter, r *http.Request) {
 	for i, c := range candidates {
 		deadline := time.Now().Add(15 * time.Minute)
 		formattedCandidates = append(formattedCandidates, map[string]interface{}{
-			"match_id":          fmt.Sprintf("match-uuid-%d", i+1),
+			"match_id":          c.MatchID,
 			"match_rank":        i + 1,
 			"worker_id":         c.WorkerID,
 			"full_name":         c.FullName,
@@ -428,16 +428,17 @@ func (h *Handler) AcceptJob(w http.ResponseWriter, r *http.Request) {
 	if *job.AgreedPrice >= 1000000 {
 		platformFee = int64(float64(*job.AgreedPrice) * 0.02)
 	}
-	netToWorker := *job.AgreedPrice - platformFee
+	totalCharged := *job.AgreedPrice + platformFee
 
 	respondWithJSON(w, http.StatusOK, map[string]interface{}{
-		"job_id":        job.ID,
-		"match_id":      req.MatchID,
-		"agreed_price":  *job.AgreedPrice,
-		"platform_fee":  platformFee,
-		"net_to_worker": netToWorker,
-		"status":        "accepted",
-		"message":       "Job berhasil diterima. Menunggu pemberi kerja mengamankan dana.",
+		"job_id":                     job.ID,
+		"match_id":                   req.MatchID,
+		"agreed_price":               *job.AgreedPrice,
+		"platform_fee":               platformFee,
+		"net_to_worker":              *job.AgreedPrice,
+		"total_charged_to_employer":  totalCharged,
+		"status":                     "accepted",
+		"message":                    "Job berhasil diterima. Menunggu pemberi kerja mengamankan dana.",
 	})
 }
 

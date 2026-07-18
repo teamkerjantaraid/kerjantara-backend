@@ -71,7 +71,7 @@ func (h *Handler) CreatePayment(w http.ResponseWriter, r *http.Request) {
 		"agreed_price":              p.Amount,
 		"platform_fee":              p.PlatformFee,
 		"net_to_worker":             p.NetToWorker,
-		"total_charged_to_employer": p.Amount,
+		"total_charged_to_employer": p.Amount + p.PlatformFee,
 		"midtrans_order_id":         p.MidtransOrderID,
 		"fee_note":                  feeNote,
 	})

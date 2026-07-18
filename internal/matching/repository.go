@@ -23,6 +23,7 @@ type JobInfo struct {
 }
 
 type Candidate struct {
+	MatchID         string
 	WorkerID        string
 	FullName        string
 	Phone           string
@@ -35,6 +36,7 @@ type Candidate struct {
 }
 
 type JobMatch struct {
+	ID             string    `json:"id"`
 	JobID          string
 	WorkerID       string
 	CompositeScore float64
@@ -211,15 +213,17 @@ func (r *Repository) GetCandidatesForJobByCity(ctx context.Context, job *JobInfo
 	return candidates, nil
 }
 
-func (r *Repository) SaveJobMatches(ctx context.Context, matches []JobMatch) error {
+func (r *Repository) SaveJobMatches(ctx context.Context, matches []JobMatch) ([]JobMatch, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback(ctx)
 
+	var result []JobMatch
 	for _, m := range matches {
-		_, err = tx.Exec(ctx, `
+		var matchID string
+		err = tx.QueryRow(ctx, `
 			INSERT INTO kerjantara.trx_job_matches (job_id, worker_id, composite_score, score_breakdown, match_rank, match_status, response_deadline, notified_at)
 			VALUES ($1, $2, $3, $4, $5, 'recommended', $6, now())
 			ON CONFLICT (job_id, worker_id) DO UPDATE
@@ -229,13 +233,20 @@ func (r *Repository) SaveJobMatches(ctx context.Context, matches []JobMatch) err
 			    match_status = 'recommended',
 			    response_deadline = EXCLUDED.response_deadline,
 			    notified_at = now()
-		`, m.JobID, m.WorkerID, m.CompositeScore, m.Breakdown, m.Rank, m.Deadline)
+			RETURNING id
+		`, m.JobID, m.WorkerID, m.CompositeScore, m.Breakdown, m.Rank, m.Deadline).Scan(&matchID)
 		if err != nil {
-			return err
+			return nil, err
 		}
+		m.ID = matchID
+		result = append(result, m)
 	}
 
-	return tx.Commit(ctx)
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 func (r *Repository) UpdateJobStatus(ctx context.Context, jobID string, statusCode string) error {
