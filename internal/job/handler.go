@@ -184,7 +184,7 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 			"distance_km":       mathRound(c.DistanceMeters/1000.0, 1),
 			"avg_response_min":   c.AvgResponseMin,
 			"bio":               c.Bio,
-			"composite_score":   mathRound(c.KerjantaraScore/5.0, 2), // sample normalization
+			"composite_score":   mathRound(c.CompositeScore, 2),
 			"response_deadline": deadline,
 		})
 	}
@@ -253,7 +253,7 @@ func (h *Handler) MatchJobCityFallback(w http.ResponseWriter, r *http.Request) {
 			"distance_km":       mathRound(c.DistanceMeters/1000.0, 1),
 			"avg_response_min":   c.AvgResponseMin,
 			"bio":               c.Bio,
-			"composite_score":   mathRound(c.KerjantaraScore/5.0, 2),
+			"composite_score":   mathRound(c.CompositeScore, 2),
 			"response_deadline": deadline,
 		})
 	}

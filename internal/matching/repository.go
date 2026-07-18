@@ -31,6 +31,7 @@ type Candidate struct {
 	KerjantaraScore float64
 	TotalJobsDone   int
 	AvgResponseMin  float64
+	CompositeScore  float64
 }
 
 type JobMatch struct {

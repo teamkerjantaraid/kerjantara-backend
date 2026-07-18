@@ -99,23 +99,20 @@ func (s *Service) MatchJob(ctx context.Context, jobID string) ([]Candidate, erro
 
 	// Ambil kandidat terpilih saja untuk dikembalikan (sesuai matches)
 	var matchedCandidates []Candidate
-	matchedMap := make(map[string]bool)
+	matchedMap := make(map[string]float64) // workerID → compositeScore
 	for _, m := range matches {
-		matchedMap[m.WorkerID] = true
+		matchedMap[m.WorkerID] = m.CompositeScore
 	}
-	for _, c := range candidates {
-		if matchedMap[c.WorkerID] {
-			matchedCandidates = append(matchedCandidates, c)
+	for i := range candidates {
+		if score, ok := matchedMap[candidates[i].WorkerID]; ok {
+			candidates[i].CompositeScore = score
+			matchedCandidates = append(matchedCandidates, candidates[i])
 		}
 	}
 
-	// Urutkan matchedCandidates agar sesuai dengan urutan matches (composite score)
-	scoreMap := make(map[string]float64)
-	for _, m := range matches {
-		scoreMap[m.WorkerID] = m.CompositeScore
-	}
+	// Urutkan matchedCandidates berdasarkan composite score DESC
 	sort.Slice(matchedCandidates, func(i, j int) bool {
-		return scoreMap[matchedCandidates[i].WorkerID] > scoreMap[matchedCandidates[j].WorkerID]
+		return matchedCandidates[i].CompositeScore > matchedCandidates[j].CompositeScore
 	})
 
 	// Publish Event
@@ -182,22 +179,19 @@ func (s *Service) MatchJobCityFallback(ctx context.Context, jobID string, cityID
 
 	// Filter & sort candidates
 	var matchedCandidates []Candidate
-	matchedMap := make(map[string]bool)
+	matchedMap := make(map[string]float64)
 	for _, m := range matches {
-		matchedMap[m.WorkerID] = true
+		matchedMap[m.WorkerID] = m.CompositeScore
 	}
-	for _, c := range candidates {
-		if matchedMap[c.WorkerID] {
-			matchedCandidates = append(matchedCandidates, c)
+	for i := range candidates {
+		if score, ok := matchedMap[candidates[i].WorkerID]; ok {
+			candidates[i].CompositeScore = score
+			matchedCandidates = append(matchedCandidates, candidates[i])
 		}
 	}
 
-	scoreMap := make(map[string]float64)
-	for _, m := range matches {
-		scoreMap[m.WorkerID] = m.CompositeScore
-	}
 	sort.Slice(matchedCandidates, func(i, j int) bool {
-		return scoreMap[matchedCandidates[i].WorkerID] > scoreMap[matchedCandidates[j].WorkerID]
+		return matchedCandidates[i].CompositeScore > matchedCandidates[j].CompositeScore
 	})
 
 	// Publish Event

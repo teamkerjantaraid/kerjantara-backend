@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -62,14 +63,16 @@ func main() {
 
 	// 3. Initialize File Storage client (S3 / MinIO / Supabase Storage)
 	storageEndpoint := os.Getenv("STORAGE_ENDPOINT")
-	if storageEndpoint == "" {
+	storageAccessKey := os.Getenv("STORAGE_ACCESS_KEY")
+	storageSecretKey := os.Getenv("STORAGE_SECRET_KEY")
+
+	// Fallback to Supabase Storage S3 if no storage env set
+	if storageEndpoint == "" && cfg.SupabaseURL != "" {
 		storageEndpoint = cfg.SupabaseURL
 	}
-	storageAccessKey := os.Getenv("STORAGE_ACCESS_KEY")
-	if storageAccessKey == "" {
-		storageAccessKey = cfg.SupabaseServiceKey
+	if storageAccessKey == "" && cfg.SupabaseURL != "" {
+		storageAccessKey = extractProjectRef(cfg.SupabaseURL)
 	}
-	storageSecretKey := os.Getenv("STORAGE_SECRET_KEY")
 	if storageSecretKey == "" {
 		storageSecretKey = cfg.SupabaseServiceKey
 	}
@@ -183,4 +186,15 @@ func main() {
 	}
 
 	log.Println("Server exited successfully")
+}
+
+// extractProjectRef extracts the Supabase project reference from the URL.
+// Example: "https://xjfddrqebuoatsfbzykl.supabase.co" → "xjfddrqebuoatsfbzykl"
+func extractProjectRef(supabaseURL string) string {
+	url := strings.TrimPrefix(supabaseURL, "https://")
+	url = strings.TrimPrefix(url, "http://")
+	if idx := strings.Index(url, "."); idx != -1 {
+		return url[:idx]
+	}
+	return url
 }

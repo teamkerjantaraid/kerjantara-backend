@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -15,13 +16,17 @@ import (
 type Client struct {
 	minioClient *minio.Client
 	bucketName  string
+	isSupabase  bool
+	s3Path      string
 }
 
 var GlobalClient *Client
 
 func InitStorage(endpoint, accessKey, secretKey, bucketName string) (*Client, error) {
-	// Menentukan apakah menggunakan SSL
 	useSSL := true
+	isSupabase := false
+	s3Path := ""
+
 	if strings.HasPrefix(endpoint, "http://") {
 		useSSL = false
 		endpoint = strings.TrimPrefix(endpoint, "http://")
@@ -29,13 +34,31 @@ func InitStorage(endpoint, accessKey, secretKey, bucketName string) (*Client, er
 		endpoint = strings.TrimPrefix(endpoint, "https://")
 	}
 
-	// Supabase S3 Compatibility terkadang memerlukan parsing endpoint
-	// Jika endpoint berisi path seperti /storage/v1/s3, minio client butuh endpoint dasar saja.
-	// Tetapi biasanya, jika host-nya adalah <project-ref>.supabase.co, maka endpoint-nya cukup host tersebut.
-	minioClient, err := minio.New(endpoint, &minio.Options{
+	// Supabase S3 endpoint format: <ref>.supabase.co
+	// Supabase S3 API lives at /storage/v1/s3 path prefix
+	if strings.Contains(endpoint, ".supabase.co") {
+		isSupabase = true
+		s3Path = "/storage/v1/s3"
+		// Strip any path suffix from endpoint, keep only host
+		if idx := strings.Index(endpoint, "/"); idx != -1 {
+			endpoint = endpoint[:idx]
+		}
+	}
+
+	opts := &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure: useSSL,
-	})
+	}
+
+	// Inject custom transport for Supabase to prefix /storage/v1/s3
+	if isSupabase {
+		opts.Transport = &supabaseTransport{
+			s3Path: s3Path,
+			base:   http.DefaultTransport,
+		}
+	}
+
+	minioClient, err := minio.New(endpoint, opts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize minio client: %w", err)
 	}
@@ -43,10 +66,25 @@ func InitStorage(endpoint, accessKey, secretKey, bucketName string) (*Client, er
 	client := &Client{
 		minioClient: minioClient,
 		bucketName:  bucketName,
+		isSupabase:  isSupabase,
+		s3Path:      s3Path,
 	}
 
 	GlobalClient = client
 	return client, nil
+}
+
+// supabaseTransport rewrites request URL paths to include Supabase S3 prefix.
+type supabaseTransport struct {
+	s3Path string
+	base   http.RoundTripper
+}
+
+func (t *supabaseTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Clone request to avoid mutating the original
+	r := req.Clone(req.Context())
+	r.URL.Path = t.s3Path + r.URL.Path
+	return t.base.RoundTrip(r)
 }
 
 func (c *Client) UploadFile(ctx context.Context, objectName string, reader io.Reader, objectSize int64, contentType string) error {
