@@ -205,14 +205,14 @@ func (r *Repository) GetUserByID(ctx context.Context, id string) (*User, error) 
 	var lat, lng sql.NullFloat64
 
 	err := r.db.QueryRow(ctx, `
-		SELECT u.id, u.verif_status_id, s.code, u.full_name, u.phone, u.password_hash, 
+		SELECT u.id, u.verif_status_id, s.code, u.full_name, u.phone,
 		       u.ktp_file_key, u.selfie_file_key, u.is_active, 
 		       ST_Y(u.location::geometry) as lat, ST_X(u.location::geometry) as lng,
 		       u.created_at, u.updated_at
 		FROM kerjantara.mst_users u
 		JOIN kerjantara.ref_verif_statuses s ON u.verif_status_id = s.id
 		WHERE u.id = $1 AND u.deleted_at IS NULL
-	`, id).Scan(&u.ID, &u.VerifStatusID, &u.VerifStatus, &u.FullName, &u.Phone, &u.PasswordHash,
+	`, id).Scan(&u.ID, &u.VerifStatusID, &u.VerifStatus, &u.FullName, &u.Phone,
 		&u.KTPFileKey, &u.SelfieFileKey, &u.IsActive, &lat, &lng, &u.CreatedAt, &u.UpdatedAt)
 
 	if err != nil {

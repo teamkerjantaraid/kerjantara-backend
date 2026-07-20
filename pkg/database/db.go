@@ -25,6 +25,12 @@ func ConnectDB() (*pgxpool.Pool, error) {
 	// pooler mode transaction (port 6543) tidak support prepared statement caching
 	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeSimpleProtocol
 
+	// Aktifkan query logging jika LOG_QUERIES=true
+	if os.Getenv("LOG_QUERIES") == "true" {
+		cfg.ConnConfig.Tracer = &QueryTracer{}
+		log.Println("Query logging aktif")
+	}
+
 	cfg.MaxConns = 10
 	cfg.MinConns = 2
 
