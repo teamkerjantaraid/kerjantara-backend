@@ -181,6 +181,9 @@ func (s *Service) UploadKTP(ctx context.Context, userID string, ktpReader, selfi
 	selfieKey := fmt.Sprintf("selfie/%s%s", userID, selfieExt)
 
 	// Upload KTP ke storage
+	if storage.GlobalClient == nil {
+		return fmt.Errorf("storage belum dikonfigurasi, upload tidak dapat dilakukan")
+	}
 	err := storage.GlobalClient.UploadFile(ctx, ktpKey, ktpReader, ktpSize, ktpType)
 	if err != nil {
 		return fmt.Errorf("gagal mengupload foto KTP: %w", err)
@@ -233,16 +236,18 @@ func (s *Service) GetMe(ctx context.Context, userID string, activeRole string) (
 	}
 
 	// Generate signed URL jika data KTP tersedia
-	if u.KTPFileKey != nil && *u.KTPFileKey != "" {
-		signedURL, err := storage.GlobalClient.GetSignedURL(ctx, *u.KTPFileKey, 1*time.Hour)
-		if err == nil {
-			u.KTPFileKey = &signedURL
+	if storage.GlobalClient != nil {
+		if u.KTPFileKey != nil && *u.KTPFileKey != "" {
+			signedURL, err := storage.GlobalClient.GetSignedURL(ctx, *u.KTPFileKey, 1*time.Hour)
+			if err == nil {
+				u.KTPFileKey = &signedURL
+			}
 		}
-	}
-	if u.SelfieFileKey != nil && *u.SelfieFileKey != "" {
-		signedURL, err := storage.GlobalClient.GetSignedURL(ctx, *u.SelfieFileKey, 1*time.Hour)
-		if err == nil {
-			u.SelfieFileKey = &signedURL
+		if u.SelfieFileKey != nil && *u.SelfieFileKey != "" {
+			signedURL, err := storage.GlobalClient.GetSignedURL(ctx, *u.SelfieFileKey, 1*time.Hour)
+			if err == nil {
+				u.SelfieFileKey = &signedURL
+			}
 		}
 	}
 
@@ -327,6 +332,9 @@ func (s *Service) GetPendingVerifications(ctx context.Context) ([]PendingVerific
 	}
 
 	for i := range pvs {
+		if storage.GlobalClient == nil {
+			break
+		}
 		if pvs[i].KTPFileKey != "" {
 			signedURL, err := storage.GlobalClient.GetSignedURL(ctx, pvs[i].KTPFileKey, 1*time.Hour)
 			if err == nil {

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -61,29 +60,25 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v\n", err)
 	}
 
-	// 3. Initialize File Storage client (S3 / MinIO / Supabase Storage)
+	// 3. Initialize File Storage client (Supabase Storage REST API / MinIO)
+	// Supabase mode: uses SUPABASE_URL + SUPABASE_SERVICE_KEY automatically.
+	// MinIO mode:    set STORAGE_ENDPOINT, STORAGE_ACCESS_KEY, STORAGE_SECRET_KEY.
 	storageEndpoint := os.Getenv("STORAGE_ENDPOINT")
 	storageAccessKey := os.Getenv("STORAGE_ACCESS_KEY")
 	storageSecretKey := os.Getenv("STORAGE_SECRET_KEY")
 
-	// Fallback to Supabase Storage S3 if no storage env set
+	// Use Supabase URL as endpoint fallback so InitStorage can detect Supabase mode.
 	if storageEndpoint == "" && cfg.SupabaseURL != "" {
 		storageEndpoint = cfg.SupabaseURL
 	}
-	if storageAccessKey == "" && cfg.SupabaseURL != "" {
-		storageAccessKey = extractProjectRef(cfg.SupabaseURL)
-	}
-	if storageSecretKey == "" {
-		storageSecretKey = cfg.SupabaseServiceKey
-	}
 
 	if storageEndpoint != "" {
+		log.Printf("Storage init: endpoint=%s bucket=%s", storageEndpoint, cfg.SupabaseStorageBucket)
 		_, err = storage.InitStorage(storageEndpoint, storageAccessKey, storageSecretKey, cfg.SupabaseStorageBucket)
 		if err != nil {
-			log.Printf("Warning: failed to initialize storage client (files upload might fail): %v\n", err)
-		} else {
-			log.Println("Storage client initialized successfully")
+			log.Fatalf("FATAL: failed to initialize storage client: %v\n", err)
 		}
+		log.Println("Storage client initialized successfully")
 	} else {
 		log.Println("Warning: STORAGE_ENDPOINT / SUPABASE_URL not configured. File uploads are disabled.")
 	}
@@ -188,13 +183,4 @@ func main() {
 	log.Println("Server exited successfully")
 }
 
-// extractProjectRef extracts the Supabase project reference from the URL.
-// Example: "https://xjfddrqebuoatsfbzykl.supabase.co" → "xjfddrqebuoatsfbzykl"
-func extractProjectRef(supabaseURL string) string {
-	url := strings.TrimPrefix(supabaseURL, "https://")
-	url = strings.TrimPrefix(url, "http://")
-	if idx := strings.Index(url, "."); idx != -1 {
-		return url[:idx]
-	}
-	return url
-}
+

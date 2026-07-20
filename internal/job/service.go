@@ -178,6 +178,10 @@ func (s *Service) CompleteJob(ctx context.Context, jobID string, workerID string
 	var fileKeys []string
 	var signedURLs []string
 
+	if storage.GlobalClient == nil {
+		return nil, nil, fmt.Errorf("storage belum dikonfigurasi, upload bukti tidak dapat dilakukan")
+	}
+
 	for i, reader := range proofReaders {
 		ext := getExtensionFromMime(proofTypes[i], ".jpg")
 		key := fmt.Sprintf("proof/%s/%d%s", jobID, i+1, ext)
