@@ -177,8 +177,10 @@ func (s *Service) UploadKTP(ctx context.Context, userID string, ktpReader, selfi
 	ktpExt := getExtensionFromMime(ktpType, ".jpg")
 	selfieExt := getExtensionFromMime(selfieType, ".jpg")
 
-	ktpKey := fmt.Sprintf("ktp/%s%s", userID, ktpExt)
-	selfieKey := fmt.Sprintf("selfie/%s%s", userID, selfieExt)
+	// Gunakan timestamp agar setiap upload menghasilkan key unik (tidak menimpa file lama)
+	ts := time.Now().Unix()
+	ktpKey := fmt.Sprintf("ktp/%s_%d%s", userID, ts, ktpExt)
+	selfieKey := fmt.Sprintf("selfie/%s_%d%s", userID, ts, selfieExt)
 
 	// Upload KTP ke storage
 	if storage.GlobalClient == nil {

@@ -152,7 +152,6 @@ func (c *Client) supabaseUpload(ctx context.Context, objectName string, reader i
 	}
 	req.Header.Set("Authorization", "Bearer "+c.supabaseKey)
 	req.Header.Set("Content-Type", contentType)
-	req.Header.Set("x-upsert", "true") // overwrite if exists
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
