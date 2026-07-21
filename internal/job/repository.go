@@ -77,6 +77,29 @@ func (r *Repository) GetStatusIDByCode(ctx context.Context, code string) (int, e
 	return id, err
 }
 
+type WorkerVerification struct {
+	VerifStatus string `json:"verif_status"`
+	IsAvailable bool   `json:"is_available"`
+}
+
+func (r *Repository) GetWorkerVerification(ctx context.Context, workerID string) (*WorkerVerification, error) {
+	v := &WorkerVerification{}
+	err := r.db.QueryRow(ctx, `
+		SELECT vs.code, COALESCE(wp.is_available, false)
+		FROM kerjantara.mst_users u
+		JOIN kerjantara.ref_verif_statuses vs ON u.verif_status_id = vs.id
+		LEFT JOIN kerjantara.mst_worker_profiles wp ON wp.user_id = u.id
+		WHERE u.id = $1 AND u.deleted_at IS NULL
+	`, workerID).Scan(&v.VerifStatus, &v.IsAvailable)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return v, nil
+}
+
 func (r *Repository) CreateJob(ctx context.Context, j *Job) (*Job, error) {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

@@ -277,11 +277,6 @@ func (s *Service) ActivateRole(ctx context.Context, userID, role string, skillCa
 		return "", errors.New("user tidak ditemukan")
 	}
 
-	// Konfirmasi status verifikasi KTP must be approved
-	if u.VerifStatus != "approved" {
-		return "", errors.New("verifikasi identitas (KTP) harus disetujui terlebih dahulu")
-	}
-
 	// Add role
 	err = s.repo.AddUserRole(ctx, userID, role, skillCatIDs)
 	if err != nil {

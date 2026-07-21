@@ -390,6 +390,7 @@ func (h *Handler) GetJobsForWorker(w http.ResponseWriter, r *http.Request) {
 // @Param        body  body  AcceptMatchRequest  true  "Match ID yang diterima"
 // @Success      200   {object}  docs.SuccessEnvelope
 // @Failure      401   {object}  docs.ErrorEnvelope
+// @Failure      403   {object}  docs.ErrorEnvelope  "KTP_NOT_VERIFIED / WORKER_NOT_AVAILABLE"
 // @Failure      409   {object}  docs.ErrorEnvelope  "JOB_TAKEN — job sudah diterima worker lain"
 // @Failure      422   {object}  docs.ErrorEnvelope
 // @Security     BearerAuth
@@ -415,6 +416,14 @@ func (h *Handler) AcceptJob(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if err.Error() == "JOB_TAKEN" {
 			respondWithError(w, http.StatusConflict, "JOB_TAKEN", "Job sudah diterima oleh pekerja lain")
+			return
+		}
+		if err.Error() == "KTP_NOT_VERIFIED" {
+			respondWithError(w, http.StatusForbidden, "KTP_NOT_VERIFIED", "verifikasi identitas (KTP) harus disetujui terlebih dahulu")
+			return
+		}
+		if err.Error() == "WORKER_NOT_AVAILABLE" {
+			respondWithError(w, http.StatusForbidden, "WORKER_NOT_AVAILABLE", "worker sedang tidak tersedia untuk menerima pekerjaan")
 			return
 		}
 		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())

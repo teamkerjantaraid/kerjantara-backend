@@ -88,6 +88,20 @@ func (s *Service) GetJobsForWorker(ctx context.Context, workerID string, status 
 }
 
 func (s *Service) AcceptJob(ctx context.Context, jobID string, workerID string, matchID string) (*Job, error) {
+	v, err := s.repo.GetWorkerVerification(ctx, workerID)
+	if err != nil {
+		return nil, fmt.Errorf("gagal verifikasi worker: %w", err)
+	}
+	if v == nil {
+		return nil, errors.New("WORKER_NOT_FOUND")
+	}
+	if v.VerifStatus != "approved" {
+		return nil, errors.New("KTP_NOT_VERIFIED")
+	}
+	if !v.IsAvailable {
+		return nil, errors.New("WORKER_NOT_AVAILABLE")
+	}
+
 	// transactional accept dengan row lock
 	job, err := s.repo.AcceptJobMatch(ctx, jobID, workerID, matchID)
 	if err != nil {
