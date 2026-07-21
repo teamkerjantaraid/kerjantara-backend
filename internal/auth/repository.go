@@ -291,7 +291,7 @@ func (r *Repository) UpdateWorkerAvailability(ctx context.Context, userID string
 	return tx.Commit(ctx)
 }
 
-func (r *Repository) AddUserRole(ctx context.Context, userID string, roleCode string) error {
+func (r *Repository) AddUserRole(ctx context.Context, userID string, roleCode string, skillCatIDs []int16) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {
 		return err
@@ -331,6 +331,37 @@ func (r *Repository) AddUserRole(ctx context.Context, userID string, roleCode st
 		`, userID)
 		if err != nil {
 			return err
+		}
+
+		// Insert worker skills
+		if len(skillCatIDs) > 0 {
+			for i, skillID := range skillCatIDs {
+				// Validate skill exists and is level 2 (has parent_id)
+				var valid bool
+				err = tx.QueryRow(ctx, `
+					SELECT EXISTS(
+						SELECT 1 FROM kerjantara.ref_skill_categories
+						WHERE id = $1 AND parent_id IS NOT NULL AND is_active = true
+					)
+				`, skillID).Scan(&valid)
+				if err != nil {
+					return fmt.Errorf("gagal memvalidasi skill ID %d: %w", skillID, err)
+				}
+				if !valid {
+					return fmt.Errorf("skill ID %d tidak valid atau bukan kategori level 2", skillID)
+				}
+
+				isPrimary := i == 0
+
+				_, err = tx.Exec(ctx, `
+					INSERT INTO kerjantara.mst_worker_skills (worker_id, skill_cat_id, is_primary)
+					VALUES ($1, $2, $3)
+					ON CONFLICT (worker_id, skill_cat_id) DO NOTHING
+				`, userID, skillID, isPrimary)
+				if err != nil {
+					return fmt.Errorf("gagal menyimpan keahlian ID %d: %w", skillID, err)
+				}
+			}
 		}
 	}
 

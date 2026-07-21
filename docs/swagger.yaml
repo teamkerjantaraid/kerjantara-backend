@@ -31,6 +31,10 @@ definitions:
       role:
         example: worker
         type: string
+      skill_cat_ids:
+        items:
+          type: integer
+        type: array
     type: object
   internal_auth.GoogleLoginRequest:
     properties:

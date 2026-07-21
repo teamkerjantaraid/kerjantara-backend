@@ -1642,6 +1642,12 @@ const docTemplate = `{
                 "role": {
                     "type": "string",
                     "example": "worker"
+                },
+                "skill_cat_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
                 }
             }
         },

@@ -47,7 +47,8 @@ type ToggleWorkerRequest struct {
 
 // ActivateRoleRequest is the request body for activating a role
 type ActivateRoleRequest struct {
-	Role string `json:"role" example:"worker"`
+	Role        string  `json:"role" example:"worker"`
+	SkillCatIDs []int16 `json:"skill_cat_ids,omitempty" extensions:"Wajib diisi jika role=worker, minimal 1"`
 }
 
 // SwitchRoleRequest is the request body for switching the active role

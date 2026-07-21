@@ -324,7 +324,8 @@ func (h *Handler) ActivateRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Role string `json:"role"`
+		Role        string  `json:"role"`
+		SkillCatIDs []int16 `json:"skill_cat_ids"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -332,7 +333,7 @@ func (h *Handler) ActivateRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := h.service.ActivateRole(r.Context(), claims.UserID, req.Role)
+	token, err := h.service.ActivateRole(r.Context(), claims.UserID, req.Role, req.SkillCatIDs)
 	if err != nil {
 		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 		return

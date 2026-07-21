@@ -260,9 +260,13 @@ func (s *Service) ToggleWorkerAvailability(ctx context.Context, userID string, i
 	return s.repo.UpdateWorkerAvailability(ctx, userID, isAvailable, lat, lng)
 }
 
-func (s *Service) ActivateRole(ctx context.Context, userID, role string) (string, error) {
+func (s *Service) ActivateRole(ctx context.Context, userID, role string, skillCatIDs []int16) (string, error) {
 	if role != "worker" && role != "employer" {
 		return "", errors.New("role tidak valid")
+	}
+
+	if role == "worker" && len(skillCatIDs) == 0 {
+		return "", errors.New("minimal pilih satu keahlian untuk role pekerja")
 	}
 
 	u, err := s.repo.GetUserByID(ctx, userID)
@@ -279,7 +283,7 @@ func (s *Service) ActivateRole(ctx context.Context, userID, role string) (string
 	}
 
 	// Add role
-	err = s.repo.AddUserRole(ctx, userID, role)
+	err = s.repo.AddUserRole(ctx, userID, role, skillCatIDs)
 	if err != nil {
 		return "", fmt.Errorf("gagal menambahkan role: %w", err)
 	}
