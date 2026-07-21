@@ -273,6 +273,134 @@ func (s *Service) ConfirmJob(ctx context.Context, jobID string, employerID strin
 	return updatedJob, nil
 }
 
+func (s *Service) CompleteDay(ctx context.Context, jobID string, workerID string, dayNumber int, proofReaders []io.Reader, proofSizes []int64, proofTypes []string, notes string) (*Job, []string, error) {
+	job, err := s.repo.GetJobByID(ctx, jobID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if job == nil {
+		return nil, nil, errors.New("job tidak ditemukan")
+	}
+	if job.AcceptedWorker == nil || job.AcceptedWorker.UserID != workerID {
+		return nil, nil, errors.New("anda bukan pekerja yang terdaftar untuk job ini")
+	}
+	if job.DurationDays < 2 {
+		return nil, nil, errors.New("job ini single-day — gunakan endpoint /jobs/{id}/complete")
+	}
+	if dayNumber < 1 || dayNumber > job.DurationDays {
+		return nil, nil, fmt.Errorf("hari ke-%d tidak valid, job ini hanya %d hari", dayNumber, job.DurationDays)
+	}
+
+	existing, _ := s.repo.GetDayLog(ctx, jobID, dayNumber)
+	if existing != nil && existing.ConfirmedBy != nil {
+		return nil, nil, errors.New("hari ini sudah dikonfirmasi dan tidak bisa diubah")
+	}
+
+	var fileKeys []string
+	var signedURLs []string
+
+	if storage.GlobalClient == nil {
+		return nil, nil, fmt.Errorf("storage belum dikonfigurasi")
+	}
+
+	for i, reader := range proofReaders {
+		ext := getExtensionFromMime(proofTypes[i], ".jpg")
+		key := fmt.Sprintf("proof/%s/day%d_%d%s", jobID, dayNumber, i+1, ext)
+
+		err = storage.GlobalClient.UploadFile(ctx, key, reader, proofSizes[i], proofTypes[i])
+		if err != nil {
+			return nil, nil, fmt.Errorf("gagal mengupload bukti ke-%d: %w", i+1, err)
+		}
+		fileKeys = append(fileKeys, key)
+
+		signedURL, err := storage.GlobalClient.GetSignedURL(ctx, key, 1*time.Hour)
+		if err == nil {
+			signedURLs = append(signedURLs, signedURL)
+		} else {
+			signedURLs = append(signedURLs, "")
+		}
+	}
+
+	err = s.repo.SaveDayProof(ctx, jobID, dayNumber, fileKeys, notes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	updatedJob, err := s.repo.GetJobByID(ctx, jobID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	event.GlobalBus.Publish("job.day_submitted", map[string]interface{}{
+		"job_id":           jobID,
+		"day_number":       dayNumber,
+		"proof_file_keys":  fileKeys,
+		"proof_photo_urls": signedURLs,
+	})
+
+	return updatedJob, signedURLs, nil
+}
+
+func (s *Service) ConfirmDay(ctx context.Context, jobID string, employerID string, dayNumber int) (*Job, error) {
+	job, err := s.repo.GetJobByID(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	if job == nil {
+		return nil, errors.New("job tidak ditemukan")
+	}
+	if job.EmployerID != employerID {
+		return nil, errors.New("anda bukan pemberi kerja untuk job ini")
+	}
+	if job.DurationDays < 2 {
+		return nil, errors.New("job ini single-day — gunakan endpoint /jobs/{id}/confirm")
+	}
+	if dayNumber < 1 || dayNumber > job.DurationDays {
+		return nil, fmt.Errorf("hari ke-%d tidak valid, job ini hanya %d hari", dayNumber, job.DurationDays)
+	}
+
+	dayLog, _ := s.repo.GetDayLog(ctx, jobID, dayNumber)
+	if dayLog == nil || dayLog.CompletedAt.IsZero() {
+		return nil, errors.New("hari ini belum diselesaikan oleh pekerja — tidak bisa dikonfirmasi")
+	}
+	if dayLog.ConfirmedBy != nil {
+		return nil, errors.New("hari ini sudah dikonfirmasi sebelumnya")
+	}
+
+	err = s.repo.ConfirmDayLog(ctx, jobID, dayNumber, employerID)
+	if err != nil {
+		return nil, err
+	}
+
+	isLastDay := dayNumber == job.DurationDays
+	if isLastDay {
+		err = s.repo.UpdateJobStatusAndLog(ctx, jobID, "done", employerID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	event.GlobalBus.Publish(event.EventJobDayCompleted, map[string]interface{}{
+		"job_id":     jobID,
+		"day_number": dayNumber,
+	})
+
+	if isLastDay {
+		event.GlobalBus.Publish(event.EventJobCompleted, map[string]interface{}{
+			"job_id":      jobID,
+			"employer_id": employerID,
+			"worker_id":   job.AcceptedWorker.UserID,
+			"amount":      *job.AgreedPrice,
+		})
+	}
+
+	updatedJob, err := s.repo.GetJobByID(ctx, jobID)
+	if err != nil {
+		return nil, err
+	}
+	return updatedJob, nil
+}
+
 func (s *Service) RateJob(ctx context.Context, jobID string, raterID string, score float64, comment string) (string, error) {
 	job, err := s.repo.GetJobByID(ctx, jobID)
 	if err != nil {

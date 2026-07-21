@@ -47,6 +47,8 @@ func (h *Handler) RegisterRoutes(r chi.Router, authMiddleware func(http.Handler)
 		r.Patch("/jobs/{id}/confirm", h.ConfirmJob)
 		r.Post("/jobs/{id}/rate", h.RateJob)
 		r.Post("/jobs/{id}/match-fallback", h.MatchJobCityFallback)
+		r.Patch("/jobs/{id}/days/{day_number}/complete", h.CompleteDay)
+		r.Patch("/jobs/{id}/days/{day_number}/confirm", h.ConfirmDay)
 	})
 }
 
@@ -667,6 +669,134 @@ func (h *Handler) ConfirmJob(w http.ResponseWriter, r *http.Request) {
 		"status":         "done",
 		"payment_status": "released",
 		"message":        "Dana berhasil dilepaskan ke pekerja",
+	})
+}
+
+// CompleteDay godoc
+// @Summary      Pekerja upload bukti selesai per hari (multi-day job)
+// @Description  Untuk job dengan duration_days > 1. Pekerja upload bukti pekerjaan per hari. Hari terakhir tetap pakai endpoint ini.
+// @Tags         Job
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        id           path      string  true  "Job ID (UUID)"
+// @Param        day_number   path      int     true  "Hari ke-berapa (1..duration_days)"
+// @Param        proof_photos formData  file    true  "Foto bukti (min 1, max 5, total max 20MB)"
+// @Param        notes        formData  string  false "Catatan hari ini"
+// @Success      200  {object}  docs.SuccessEnvelope
+// @Failure      401  {object}  docs.ErrorEnvelope
+// @Failure      422  {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /jobs/{id}/days/{day_number}/complete [patch]
+func (h *Handler) CompleteDay(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	dayStr := chi.URLParam(r, "day_number")
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	dayNumber, err := strconv.Atoi(dayStr)
+	if err != nil || dayNumber < 1 {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "day_number harus berupa angka positif")
+		return
+	}
+
+	err = r.ParseMultipartForm(20 << 20)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Total file melebihi 20MB")
+		return
+	}
+
+	files := r.MultipartForm.File["proof_photos"]
+	if len(files) == 0 {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Minimal upload 1 foto bukti")
+		return
+	}
+	if len(files) > 5 {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Maksimal 5 file foto bukti")
+		return
+	}
+
+	var readers []io.Reader
+	var sizes []int64
+	var types []string
+
+	for _, fh := range files {
+		file, err := fh.Open()
+		if err != nil {
+			respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "Gagal membaca file")
+			return
+		}
+		defer file.Close()
+		readers = append(readers, file)
+		sizes = append(sizes, fh.Size)
+		types = append(types, fh.Header.Get("Content-Type"))
+	}
+
+	notes := r.FormValue("notes")
+
+	job, signedURLs, err := h.service.CompleteDay(r.Context(), jobID, claims.UserID, dayNumber, readers, sizes, types, notes)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":           job.ID,
+		"day_number":       dayNumber,
+		"status":           job.Status,
+		"proof_photo_urls": signedURLs,
+		"message":          fmt.Sprintf("Hari ke-%d selesai. Menunggu konfirmasi pemberi kerja.", dayNumber),
+	})
+}
+
+// ConfirmDay godoc
+// @Summary      Pemberi kerja konfirmasi hari ke-N selesai (multi-day job)
+// @Description  Untuk job dengan duration_days > 1. Employer konfirmasi pekerjaan per hari. Konfirmasi hari terakhir otomatis menyelesaikan job.
+// @Tags         Job
+// @Accept       json
+// @Produce      json
+// @Param        id          path  string  true  "Job ID (UUID)"
+// @Param        day_number  path  int     true  "Hari ke-berapa (1..duration_days)"
+// @Success      200  {object}  docs.SuccessEnvelope
+// @Failure      401  {object}  docs.ErrorEnvelope
+// @Failure      422  {object}  docs.ErrorEnvelope
+// @Security     BearerAuth
+// @Router       /jobs/{id}/days/{day_number}/confirm [patch]
+func (h *Handler) ConfirmDay(w http.ResponseWriter, r *http.Request) {
+	jobID := chi.URLParam(r, "id")
+	dayStr := chi.URLParam(r, "day_number")
+	claims, ok := middleware.GetClaims(r.Context())
+	if !ok {
+		respondWithError(w, http.StatusUnauthorized, "UNAUTHORIZED", "Token tidak valid")
+		return
+	}
+
+	dayNumber, err := strconv.Atoi(dayStr)
+	if err != nil || dayNumber < 1 {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "day_number harus berupa angka positif")
+		return
+	}
+
+	job, err := h.service.ConfirmDay(r.Context(), jobID, claims.UserID, dayNumber)
+	if err != nil {
+		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		return
+	}
+
+	isLastDay := dayNumber == job.DurationDays
+	msg := fmt.Sprintf("Hari ke-%d berhasil dikonfirmasi.", dayNumber)
+	if isLastDay {
+		msg = fmt.Sprintf("Hari ke-%d (terakhir) dikonfirmasi. Job selesai. Dana dirilis ke pekerja.", dayNumber)
+	}
+
+	respondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"job_id":     job.ID,
+		"day_number": dayNumber,
+		"status":     job.Status,
+		"is_last":    isLastDay,
+		"message":    msg,
 	})
 }
 

@@ -164,7 +164,7 @@ func (r *Repository) GetJobByID(ctx context.Context, id string) (*Job, error) {
 		SELECT j.id, j.employer_id, ue.full_name as employer_name, j.skill_cat_id, sc.code as skill_cat_code, sc.label_id as skill_cat_label, 
 		       j.status_id, js.code as status_code, j.description, j.budget, j.agreed_price, j.search_radius_km,
 		       ST_Y(j.location::geometry) as lat, ST_X(j.location::geometry) as lng, j.city_code,
-		       j.posted_at, j.expires_at, j.price_accepted_at, j.completed_at,
+		       j.duration_days, j.posted_at, j.expires_at, j.price_accepted_at, j.completed_at,
 		       uw.id as worker_id, uw.full_name as worker_name, wp.kerjantara_score as worker_score,
 		       pay.status as payment_status
 		FROM kerjantara.trx_jobs j
@@ -181,7 +181,7 @@ func (r *Repository) GetJobByID(ctx context.Context, id string) (*Job, error) {
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&j.ID, &j.EmployerID, &j.EmployerName, &j.SkillCatID, &j.SkillCatCode, &j.SkillCatLabel,
 		&j.StatusID, &j.Status, &j.Description, &j.Budget, &agreedPrice, &j.SearchRadiusKM,
-		&j.Lat, &j.Lng, &j.CityCode, &j.PostedAt, &j.ExpiresAt, &acceptedAt, &completedAt,
+		&j.Lat, &j.Lng, &j.CityCode, &j.DurationDays, &j.PostedAt, &j.ExpiresAt, &acceptedAt, &completedAt,
 		&workerID, &workerName, &workerScore, &paymentStatus,
 	)
 
@@ -550,28 +550,100 @@ func (r *Repository) GetJobsByWorker(ctx context.Context, workerID string, statu
 }
 
 func (r *Repository) SaveJobProof(ctx context.Context, jobID string, fileKeys []string, notes string) error {
-	// Di schema trx_jobs tidak ada kolom proof_photos dan notes.
-	// Di DDL Schema kita tidak mendefinisikan tabel proof khusus, tetapi API contract mengembalikan `proof_file_keys` dan `proof_photo_urls`.
-	// Mari kita simpan link ini di database? Di manakah?
-	// Oh, di database, kita bisa menyimpannya sebagai json metadata di field log, atau jika kita ingin sederhana,
-	// kita tambahkan kolom proof_file_keys TEXT[] dan proof_notes TEXT ke trx_jobs.
-	// Mari kita alter trx_jobs atau simpan di log.
-	// Jika kita lihat di `DDL_Schema_Kerjantara.md` tidak tertulis kolom ini.
-	// Tapi kita bisa melakukan ALTER TABLE trx_jobs ADD COLUMN proof_file_keys TEXT[], ADD COLUMN proof_notes TEXT secara dinamis
-	// atau kita check apakah kolom tersebut ada. Mari kita jalankan Exec untuk update jika kolom ada,
-	// atau kita update status_id ke 'done' saja.
-	// Untuk demo, sangat direkomendasikan menambahkan kolom ini ke `trx_jobs` agar data tersimpan.
-	// Kita bisa jalankan ALTER TABLE secara otomatis saat inisialisasi / DB migration.
-	// Mari kita tulis script ALTER ringan di Exec.
-	
 	_, _ = r.db.Exec(ctx, "ALTER TABLE kerjantara.trx_jobs ADD COLUMN IF NOT EXISTS proof_file_keys TEXT[], ADD COLUMN IF NOT EXISTS proof_notes TEXT;")
-	
+
 	_, err := r.db.Exec(ctx, `
 		UPDATE kerjantara.trx_jobs
 		SET proof_file_keys = $1, proof_notes = $2, status_id = (SELECT id FROM kerjantara.ref_job_statuses WHERE code = 'done'), completed_at = now()
 		WHERE id = $3
 	`, fileKeys, notes, jobID)
 	return err
+}
+
+type DayLog struct {
+	ID            string     `json:"id"`
+	JobID         string     `json:"job_id"`
+	DayNumber     int        `json:"day_number"`
+	ProofFileKeys []string   `json:"proof_file_keys,omitempty"`
+	ProofNotes    string     `json:"proof_notes,omitempty"`
+	CompletedAt   time.Time  `json:"completed_at"`
+	ConfirmedBy   *string    `json:"confirmed_by,omitempty"`
+	ConfirmedAt   *time.Time `json:"confirmed_at,omitempty"`
+}
+
+func (r *Repository) EnsureDayLogsTable(ctx context.Context) {
+	r.db.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS kerjantara.trx_job_day_logs (
+			id               UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+			job_id           UUID NOT NULL REFERENCES kerjantara.trx_jobs(id),
+			day_number       SMALLINT NOT NULL,
+			proof_file_keys  TEXT[],
+			proof_notes      TEXT,
+			completed_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+			confirmed_by     UUID REFERENCES kerjantara.mst_users(id),
+			confirmed_at     TIMESTAMPTZ,
+			UNIQUE(job_id, day_number)
+		)
+	`)
+}
+
+func (r *Repository) SaveDayProof(ctx context.Context, jobID string, dayNumber int, fileKeys []string, notes string) error {
+	r.EnsureDayLogsTable(ctx)
+
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO kerjantara.trx_job_day_logs (job_id, day_number, proof_file_keys, proof_notes, completed_at)
+		VALUES ($1, $2, $3, $4, now())
+		ON CONFLICT (job_id, day_number) DO UPDATE
+		SET proof_file_keys = EXCLUDED.proof_file_keys,
+		    proof_notes = EXCLUDED.proof_notes,
+		    completed_at = now()
+	`, jobID, dayNumber, fileKeys, notes)
+	return err
+}
+
+func (r *Repository) ConfirmDayLog(ctx context.Context, jobID string, dayNumber int, confirmedBy string) error {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO kerjantara.trx_job_day_logs (job_id, day_number, confirmed_by, confirmed_at)
+		VALUES ($1, $2, $3, now())
+		ON CONFLICT (job_id, day_number) DO UPDATE
+		SET confirmed_by = EXCLUDED.confirmed_by,
+		    confirmed_at = EXCLUDED.confirmed_at
+	`, jobID, dayNumber, confirmedBy)
+	return err
+}
+
+func (r *Repository) GetDayLog(ctx context.Context, jobID string, dayNumber int) (*DayLog, error) {
+	d := &DayLog{}
+	var proofFileKeys []string
+	var proofNotes, confirmedBy sql.NullString
+	var confirmedAt sql.NullTime
+
+	err := r.db.QueryRow(ctx, `
+		SELECT id, job_id, day_number, proof_file_keys, COALESCE(proof_notes, ''),
+		       completed_at, confirmed_by, confirmed_at
+		FROM kerjantara.trx_job_day_logs
+		WHERE job_id = $1 AND day_number = $2
+	`, jobID, dayNumber).Scan(&d.ID, &d.JobID, &d.DayNumber, &proofFileKeys,
+		&proofNotes, &d.CompletedAt, &confirmedBy, &confirmedAt)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	d.ProofFileKeys = proofFileKeys
+	d.ProofNotes = proofNotes.String
+	if confirmedBy.Valid {
+		s := confirmedBy.String
+		d.ConfirmedBy = &s
+	}
+	if confirmedAt.Valid {
+		t := confirmedAt.Time
+		d.ConfirmedAt = &t
+	}
+	return d, nil
 }
 
 func (r *Repository) GetJobProofKeys(ctx context.Context, jobID string) ([]string, string, error) {
