@@ -87,8 +87,10 @@ Buka file `.env` tersebut dan lengkapi nilai kredensial Supabase, database passw
 ### 3. Menjalankan Server secara Lokal
 Untuk menjalankan server secara manual di port default `8080`:
 ```bash
-go run cmd/main.go
+go run ./cmd
+# go run cmd/main.go
 ```
+
 
 Untuk menjalankan seluruh ekosistem (termasuk PostgreSQL lokal dan MinIO S3 lokal) via Docker Compose:
 ```bash

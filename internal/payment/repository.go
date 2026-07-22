@@ -113,6 +113,17 @@ func (r *Repository) GetPaymentByJobID(ctx context.Context, jobID string) (*Paym
 	return p, nil
 }
 
+func (r *Repository) GetWorkerIDByJobID(ctx context.Context, jobID string) (string, error) {
+	var workerID string
+	err := r.db.QueryRow(ctx, `
+		SELECT worker_id FROM kerjantara.trx_payments WHERE job_id = $1
+	`, jobID).Scan(&workerID)
+	if err != nil {
+		return "", err
+	}
+	return workerID, nil
+}
+
 func (r *Repository) UpdatePaymentStatus(ctx context.Context, midtransOrderID string, status string, rawPayload string) error {
 	tx, err := r.db.Begin(ctx)
 	if err != nil {

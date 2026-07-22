@@ -212,15 +212,22 @@ func (s *Service) handleJobCompleted(ctx context.Context, ev event.Event) {
 		return
 	}
 
-	err := s.repo.ReleaseEscrow(ctx, jobID)
+	// Ambil worker_id sebelum release agar bisa disertakan di event
+	workerID, err := s.repo.GetWorkerIDByJobID(ctx, jobID)
+	if err != nil {
+		log.Printf("[Payment Service] failed to get worker_id for job %s: %v\n", jobID, err)
+	}
+
+	err = s.repo.ReleaseEscrow(ctx, jobID)
 	if err != nil {
 		log.Printf("[Payment Service] failed to release escrow for job %s: %v\n", jobID, err)
 	} else {
 		log.Printf("[Payment Service] escrow released successfully for job %s\n", jobID)
-		
-		// Publish event payment released
+
+		// Publish event payment released dengan worker_id agar notifikasi bisa dikirim
 		event.GlobalBus.Publish(event.EventPaymentReleased, map[string]interface{}{
-			"job_id": jobID,
+			"job_id":    jobID,
+			"worker_id": workerID,
 		})
 	}
 }
@@ -239,16 +246,23 @@ func (s *Service) handleJobDayCompleted(ctx context.Context, ev event.Event) {
 		return
 	}
 
-	err := s.repo.ReleaseMilestone(ctx, jobID, dayNumber)
+	// Ambil worker_id sebelum release agar bisa disertakan di event
+	workerID, err := s.repo.GetWorkerIDByJobID(ctx, jobID)
+	if err != nil {
+		log.Printf("[Payment Service] failed to get worker_id for job %s: %v\n", jobID, err)
+	}
+
+	err = s.repo.ReleaseMilestone(ctx, jobID, dayNumber)
 	if err != nil {
 		log.Printf("[Payment Service] failed to release milestone for job %s day %d: %v\n", jobID, dayNumber, err)
 	} else {
 		log.Printf("[Payment Service] milestone released successfully for job %s day %d\n", jobID, dayNumber)
-		
-		// Publish event payment released (milestone)
+
+		// Publish event payment released (milestone) dengan worker_id agar notifikasi bisa dikirim
 		event.GlobalBus.Publish(event.EventPaymentReleased, map[string]interface{}{
 			"job_id":     jobID,
 			"day_number": dayNumber,
+			"worker_id":  workerID,
 		})
 	}
 }

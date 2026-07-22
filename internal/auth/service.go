@@ -365,6 +365,11 @@ func (s *Service) ReviewVerification(ctx context.Context, userID, decision, note
 	return s.repo.ReviewVerification(ctx, userID, decision, note)
 }
 
+// GetUserByID mengambil data user berdasarkan ID. Digunakan oleh handler setelah ReviewVerification.
+func (s *Service) GetUserByID(ctx context.Context, userID string) (*User, error) {
+	return s.repo.GetUserByID(ctx, userID)
+}
+
 func getExtensionFromMime(mimeType, fallback string) string {
 	exts, err := mime.ExtensionsByType(mimeType)
 	if err != nil || len(exts) == 0 {

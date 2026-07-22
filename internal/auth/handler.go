@@ -447,9 +447,7 @@ func (h *Handler) ReviewVerification(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Fetch user details to respond
-	// We can directly mock or scan the info. For simplicity, we just fetch from DB or hardcode the basic response.
-	// API contract: return user_id, full_name, verif_status, message
-	u, _ := h.service.repo.GetUserByID(r.Context(), userID)
+	u, _ := h.service.GetUserByID(r.Context(), userID)
 	fullName := ""
 	verifStatus := req.Decision
 	if u != nil {

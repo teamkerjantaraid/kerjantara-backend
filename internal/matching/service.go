@@ -76,9 +76,7 @@ func (s *Service) MatchJob(ctx context.Context, jobID string) ([]Candidate, erro
 	// Deadline bergantian per 15 menit per rank?
 	// Di API contract: "response_deadline: 15 menit dari sekarang".
 	// Jika rank 1 tidak merespons -> notif rank 2, dst. Untuk MVP, deadline awal diset 15 menit untuk ketiga kandidat.
-	deadline := now.Add(time.Duration(s.responseWindowMinutes) * time.Hour) // wait, di contract: response_window_minutes = 15. Tetapi format duration di service:
-	// Let's use time.Duration(s.responseWindowMinutes) * time.Minute
-	deadline = now.Add(time.Duration(s.responseWindowMinutes) * time.Minute)
+	deadline := now.Add(time.Duration(s.responseWindowMinutes) * time.Minute)
 
 	for i := range matches {
 		matches[i].Rank = i + 1
