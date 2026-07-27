@@ -26,19 +26,28 @@ func NewService(repo *Repository, matchingService *matching.Service) *Service {
 	}
 }
 
-func (s *Service) CreateJob(ctx context.Context, employerID string, skillCatID int, description string, budget int64, lat, lng float64, cityCode string) (*Job, []matching.Candidate, error) {
+func (s *Service) CreateJob(ctx context.Context, employerID string, skillCatID int, description string, budget int64, lat, lng float64, cityCode string, durationDays int, scheduledStartDate string) (*Job, []matching.Candidate, error) {
 	if description == "" || budget <= 0 || lat == 0 || lng == 0 || cityCode == "" {
 		return nil, nil, errors.New("input job tidak lengkap atau tidak valid")
 	}
 
 	j := &Job{
-		EmployerID:   employerID,
-		SkillCatID:   skillCatID,
-		Description:  description,
-		Budget:       budget,
-		Lat:          lat,
-		Lng:          lng,
-		CityCode:     cityCode,
+		EmployerID:         employerID,
+		SkillCatID:         skillCatID,
+		Description:        description,
+		Budget:             budget,
+		Lat:                lat,
+		Lng:                lng,
+		CityCode:           cityCode,
+		DurationDays:       durationDays,
+	}
+
+	if scheduledStartDate != "" {
+		parsed, err := time.Parse("2006-01-02", scheduledStartDate)
+		if err != nil {
+			return nil, nil, fmt.Errorf("format scheduled_start_date tidak valid, gunakan YYYY-MM-DD: %w", err)
+		}
+		j.ScheduledStartDate = parsed
 	}
 
 	// 1. Simpan Job ke database (status awal 'pending')

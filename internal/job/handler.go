@@ -131,12 +131,14 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		SkillCatID int     `json:"skill_cat_id"`
-		Description string  `json:"description"`
-		Budget      int64   `json:"budget"`
-		Lat         float64 `json:"lat"`
-		Lng         float64 `json:"lng"`
-		CityCode    string  `json:"city_code"`
+		SkillCatID         int     `json:"skill_cat_id"`
+		Description        string  `json:"description"`
+		Budget             int64   `json:"budget"`
+		Lat                float64 `json:"lat"`
+		Lng                float64 `json:"lng"`
+		CityCode           string  `json:"city_code"`
+		DurationDays       int     `json:"duration_days"`
+		ScheduledStartDate string  `json:"scheduled_start_date"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -144,7 +146,11 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	job, candidates, err := h.service.CreateJob(r.Context(), claims.UserID, req.SkillCatID, req.Description, req.Budget, req.Lat, req.Lng, req.CityCode)
+	if req.DurationDays <= 0 {
+		req.DurationDays = 1
+	}
+
+	job, candidates, err := h.service.CreateJob(r.Context(), claims.UserID, req.SkillCatID, req.Description, req.Budget, req.Lat, req.Lng, req.CityCode, req.DurationDays, req.ScheduledStartDate)
 	if err != nil {
 		respondWithError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 		return
@@ -197,13 +203,15 @@ func (h *Handler) CreateJob(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondWithJSON(w, http.StatusCreated, map[string]interface{}{
-		"job_id":                  job.ID,
-		"status":                  status,
-		"budget":                  job.Budget,
-		"rate_card":               rcResponse,
-		"budget_vs_market":        budgetVsMarket,
+		"job_id":                job.ID,
+		"status":                status,
+		"budget":                job.Budget,
+		"duration_days":         job.DurationDays,
+		"scheduled_start_date":  job.ScheduledStartDate.Format("2006-01-02"),
+		"rate_card":             rcResponse,
+		"budget_vs_market":      budgetVsMarket,
 		"response_window_minutes": 15,
-		"candidates":              formattedCandidates,
+		"candidates":            formattedCandidates,
 	})
 }
 

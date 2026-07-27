@@ -117,12 +117,22 @@ func (r *Repository) CreateJob(ctx context.Context, j *Job) (*Job, error) {
 	now := time.Now()
 	expiresAt := now.Add(2 * time.Hour) // default expires in 2 hours
 
+	startDate := j.ScheduledStartDate
+	if startDate.IsZero() {
+		startDate = now
+	}
+
+	durationDays := j.DurationDays
+	if durationDays <= 0 {
+		durationDays = 1
+	}
+
 	var jobID string
 	err = tx.QueryRow(ctx, `
-		INSERT INTO kerjantara.trx_jobs (employer_id, skill_cat_id, status_id, description, budget, search_radius_km, location, city_code, posted_at, expires_at)
-		VALUES ($1, $2, $3, $4, $5, 2.0, ST_SetSRID(ST_MakePoint($6, $7), 4326)::geography, $8, $9, $10)
+		INSERT INTO kerjantara.trx_jobs (employer_id, skill_cat_id, status_id, description, budget, search_radius_km, location, city_code, duration_days, scheduled_start_date, posted_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5, 2.0, ST_SetSRID(ST_MakePoint($6, $7), 4326)::geography, $8, $9, $10, $11, $12)
 		RETURNING id
-	`, j.EmployerID, j.SkillCatID, statusID, j.Description, j.Budget, j.Lng, j.Lat, j.CityCode, now, expiresAt).Scan(&jobID)
+	`, j.EmployerID, j.SkillCatID, statusID, j.Description, j.Budget, j.Lng, j.Lat, j.CityCode, durationDays, startDate, now, expiresAt).Scan(&jobID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert job: %w", err)
@@ -164,7 +174,7 @@ func (r *Repository) GetJobByID(ctx context.Context, id string) (*Job, error) {
 		SELECT j.id, j.employer_id, ue.full_name as employer_name, j.skill_cat_id, sc.code as skill_cat_code, sc.label_id as skill_cat_label, 
 		       j.status_id, js.code as status_code, j.description, j.budget, j.agreed_price, j.search_radius_km,
 		       ST_Y(j.location::geometry) as lat, ST_X(j.location::geometry) as lng, j.city_code,
-		       j.duration_days, j.posted_at, j.expires_at, j.price_accepted_at, j.completed_at,
+		       j.duration_days, j.scheduled_start_date, j.posted_at, j.expires_at, j.price_accepted_at, j.completed_at,
 		       uw.id as worker_id, uw.full_name as worker_name, wp.kerjantara_score as worker_score,
 		       pay.status as payment_status
 		FROM kerjantara.trx_jobs j
@@ -181,7 +191,7 @@ func (r *Repository) GetJobByID(ctx context.Context, id string) (*Job, error) {
 	err := r.db.QueryRow(ctx, query, id).Scan(
 		&j.ID, &j.EmployerID, &j.EmployerName, &j.SkillCatID, &j.SkillCatCode, &j.SkillCatLabel,
 		&j.StatusID, &j.Status, &j.Description, &j.Budget, &agreedPrice, &j.SearchRadiusKM,
-		&j.Lat, &j.Lng, &j.CityCode, &j.DurationDays, &j.PostedAt, &j.ExpiresAt, &acceptedAt, &completedAt,
+		&j.Lat, &j.Lng, &j.CityCode, &j.DurationDays, &j.ScheduledStartDate, &j.PostedAt, &j.ExpiresAt, &acceptedAt, &completedAt,
 		&workerID, &workerName, &workerScore, &paymentStatus,
 	)
 
