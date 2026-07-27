@@ -246,11 +246,18 @@ func (s *Service) ConfirmJob(ctx context.Context, jobID string, employerID strin
 		return nil, errors.New("job tidak ditemukan")
 	}
 
+	if job.Status == "done" {
+		return nil, errors.New("job sudah selesai dikonfirmasi sebelumnya")
+	}
+
+	if job.Status != "ongoing" {
+		return nil, errors.New("job belum dimulai atau status tidak valid untuk konfirmasi")
+	}
+
 	if job.EmployerID != employerID {
 		return nil, errors.New("anda bukan pemberi kerja untuk job ini")
 	}
 
-	// Update status ke 'done' (untuk kepastian jika belum diset)
 	err = s.repo.UpdateJobStatusAndLog(ctx, jobID, "done", employerID)
 	if err != nil {
 		return nil, err
@@ -286,6 +293,9 @@ func (s *Service) CompleteDay(ctx context.Context, jobID string, workerID string
 	}
 	if job.DurationDays < 2 {
 		return nil, nil, errors.New("job ini single-day — gunakan endpoint /jobs/{id}/complete")
+	}
+	if job.Status != "ongoing" {
+		return nil, nil, errors.New("pekerjaan belum dimulai atau tidak dalam status berjalan")
 	}
 	if dayNumber < 1 || dayNumber > job.DurationDays {
 		return nil, nil, fmt.Errorf("hari ke-%d tidak valid, job ini hanya %d hari", dayNumber, job.DurationDays)
@@ -408,6 +418,10 @@ func (s *Service) RateJob(ctx context.Context, jobID string, raterID string, sco
 	}
 	if job == nil {
 		return "", errors.New("job tidak ditemukan")
+	}
+
+	if job.Status != "done" {
+		return "", errors.New("pekerjaan belum selesai, tidak bisa memberikan rating")
 	}
 
 	// Validasi rater

@@ -550,8 +550,6 @@ func (r *Repository) GetJobsByWorker(ctx context.Context, workerID string, statu
 }
 
 func (r *Repository) SaveJobProof(ctx context.Context, jobID string, fileKeys []string, notes string) error {
-	_, _ = r.db.Exec(ctx, "ALTER TABLE kerjantara.trx_jobs ADD COLUMN IF NOT EXISTS proof_file_keys TEXT[], ADD COLUMN IF NOT EXISTS proof_notes TEXT;")
-
 	_, err := r.db.Exec(ctx, `
 		UPDATE kerjantara.trx_jobs
 		SET proof_file_keys = $1, proof_notes = $2, status_id = (SELECT id FROM kerjantara.ref_job_statuses WHERE code = 'done'), completed_at = now()
@@ -588,8 +586,6 @@ func (r *Repository) EnsureDayLogsTable(ctx context.Context) {
 }
 
 func (r *Repository) SaveDayProof(ctx context.Context, jobID string, dayNumber int, fileKeys []string, notes string) error {
-	r.EnsureDayLogsTable(ctx)
-
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO kerjantara.trx_job_day_logs (job_id, day_number, proof_file_keys, proof_notes, completed_at)
 		VALUES ($1, $2, $3, $4, now())

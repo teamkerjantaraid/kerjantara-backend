@@ -38,6 +38,14 @@ func (s *Service) Register(ctx context.Context, fullName, phone, password, role 
 		return nil, "", errors.New("field registrasi tidak boleh kosong")
 	}
 
+	if len(phone) < 10 {
+		return nil, "", errors.New("nomor telepon minimal 10 digit")
+	}
+
+	if len(password) < 8 {
+		return nil, "", errors.New("password minimal 8 karakter")
+	}
+
 	if role != "worker" && role != "employer" {
 		return nil, "", errors.New("role tidak valid, harus worker atau employer")
 	}
@@ -155,12 +163,15 @@ func (s *Service) Login(ctx context.Context, phone, password string) (*User, str
 		return nil, "", time.Time{}, errors.New("nomor telepon atau password salah")
 	}
 
-	// Tentukan active role awal. Jika ada worker, jadikan default, kalau tidak employer.
-	activeRole := u.Roles[0]
-	for _, r := range u.Roles {
-		if r == "worker" {
-			activeRole = "worker"
-			break
+	// Tentukan active role dari DB, fallback ke worker-first jika kosong
+	activeRole := u.ActiveRole
+	if activeRole == "" {
+		activeRole = u.Roles[0]
+		for _, r := range u.Roles {
+			if r == "worker" {
+				activeRole = "worker"
+				break
+			}
 		}
 	}
 
@@ -316,6 +327,10 @@ func (s *Service) SwitchRole(ctx context.Context, userID, targetRole string) (st
 
 	if !hasRole {
 		return "", fmt.Errorf("user tidak memiliki role %s", targetRole)
+	}
+
+	if err := s.repo.UpdateActiveRole(ctx, userID, targetRole); err != nil {
+		return "", fmt.Errorf("gagal menyimpan role aktif: %w", err)
 	}
 
 	token, _, err := middleware.GenerateToken(userID, u.Roles, targetRole, s.jwtSecret)

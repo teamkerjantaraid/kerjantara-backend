@@ -212,7 +212,7 @@ func (s *Service) handleJobCompleted(ctx context.Context, ev event.Event) {
 		return
 	}
 
-	// Ambil worker_id sebelum release agar bisa disertakan di event
+	// Ambil worker_id dari DB agar bisa disertakan di event notifikasi
 	workerID, err := s.repo.GetWorkerIDByJobID(ctx, jobID)
 	if err != nil {
 		log.Printf("[Payment Service] failed to get worker_id for job %s: %v\n", jobID, err)

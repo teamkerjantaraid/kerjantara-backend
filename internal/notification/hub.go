@@ -273,16 +273,32 @@ func (h *Hub) handleKTPUploaded(ev event.Event) {
 	}
 
 	userID, _ := payload["user_id"].(string)
+	log.Printf("[WS Hub] KTP upload event for user %s — broadcasting to all connected admins\n", userID)
 
-	// Broadcast ke semua admin/reviewer yang sedang online
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
-	for range h.clients {
-		// MVP: Asumsi admin/reviewer online bisa kita deteksi dengan logic role check,
-		// tapi untuk simplifikasi kita push ke user ID tertentu jika dia admin.
-		// Lebih baik letakkan log atau event broadcast generik "ktp.review_needed".
-		log.Printf("[WS Hub] KTP upload event for user %s broadcasted internally\n", userID)
+	msg := map[string]interface{}{
+		"type":      "ktp.uploaded",
+		"payload":   ev.Payload,
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+	jsonBytes, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("[WS Hub] Gagal marshal ws message: %v\n", err)
+		return
+	}
+
+	// Kirim ke semua klien yang terhubung (admin dashboard akan memfilter di sisi FE)
+	for userID, conns := range h.clients {
+		for _, conn := range conns {
+			go func(c *websocket.Conn, uid string) {
+				_ = c.SetWriteDeadline(time.Now().Add(5 * time.Second))
+				if err := c.WriteMessage(websocket.TextMessage, jsonBytes); err != nil {
+					log.Printf("[WS Hub] Gagal mengirim notifikasi KTP ke user %s: %v\n", uid, err)
+				}
+			}(conn, userID)
+		}
 	}
 }
 
@@ -300,6 +316,21 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.Register(claims.UserID, conn)
+
+	// Jalankan ping ticker untuk menjaga koneksi tetap hidup
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := conn.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(10*time.Second)); err != nil {
+					log.Printf("[WS Hub] Ping gagal ke user %s: %v\n", claims.UserID, err)
+					return
+				}
+			}
+		}
+	}()
 
 	// Jalankan read pump untuk mendeteksi pemutusan koneksi (ping-pong)
 	go func() {

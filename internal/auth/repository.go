@@ -23,6 +23,7 @@ type User struct {
 	IsActive      bool       `json:"is_active"`
 	Lat           *float64   `json:"lat,omitempty"`
 	Lng           *float64   `json:"lng,omitempty"`
+	ActiveRole    string     `json:"active_role"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 	Roles         []string   `json:"roles"`
@@ -156,12 +157,12 @@ func (r *Repository) GetUserByPhone(ctx context.Context, phone string) (*User, e
 		SELECT u.id, u.verif_status_id, s.code, u.full_name, u.phone, u.password_hash, 
 		       u.ktp_file_key, u.selfie_file_key, u.is_active, 
 		       ST_Y(u.location::geometry) as lat, ST_X(u.location::geometry) as lng,
-		       u.created_at, u.updated_at
+		       u.created_at, u.updated_at, u.active_role
 		FROM kerjantara.mst_users u
 		JOIN kerjantara.ref_verif_statuses s ON u.verif_status_id = s.id
 		WHERE u.phone = $1 AND u.deleted_at IS NULL
 	`, phone).Scan(&u.ID, &u.VerifStatusID, &u.VerifStatus, &u.FullName, &u.Phone, &u.PasswordHash,
-		&u.KTPFileKey, &u.SelfieFileKey, &u.IsActive, &lat, &lng, &u.CreatedAt, &u.UpdatedAt)
+		&u.KTPFileKey, &u.SelfieFileKey, &u.IsActive, &lat, &lng, &u.CreatedAt, &u.UpdatedAt, &u.ActiveRole)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -208,12 +209,12 @@ func (r *Repository) GetUserByID(ctx context.Context, id string) (*User, error) 
 		SELECT u.id, u.verif_status_id, s.code, u.full_name, u.phone,
 		       u.ktp_file_key, u.selfie_file_key, u.is_active, 
 		       ST_Y(u.location::geometry) as lat, ST_X(u.location::geometry) as lng,
-		       u.created_at, u.updated_at
+		       u.created_at, u.updated_at, u.active_role
 		FROM kerjantara.mst_users u
 		JOIN kerjantara.ref_verif_statuses s ON u.verif_status_id = s.id
 		WHERE u.id = $1 AND u.deleted_at IS NULL
 	`, id).Scan(&u.ID, &u.VerifStatusID, &u.VerifStatus, &u.FullName, &u.Phone,
-		&u.KTPFileKey, &u.SelfieFileKey, &u.IsActive, &lat, &lng, &u.CreatedAt, &u.UpdatedAt)
+		&u.KTPFileKey, &u.SelfieFileKey, &u.IsActive, &lat, &lng, &u.CreatedAt, &u.UpdatedAt, &u.ActiveRole)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -255,7 +256,8 @@ func (r *Repository) GetUserByID(ctx context.Context, id string) (*User, error) 
 func (r *Repository) UpdateKTPKeys(ctx context.Context, userID string, ktpKey, selfieKey string) error {
 	_, err := r.db.Exec(ctx, `
 		UPDATE kerjantara.mst_users
-		SET ktp_file_key = $1, selfie_file_key = $2, updated_at = now()
+		SET verif_status_id = (SELECT id FROM kerjantara.ref_verif_statuses WHERE code = 'pending'),
+		    ktp_file_key = $1, selfie_file_key = $2, updated_at = now()
 		WHERE id = $3
 	`, ktpKey, selfieKey, userID)
 	return err
@@ -452,12 +454,12 @@ func (r *Repository) GetUserBySupabaseID(ctx context.Context, supabaseID string)
 
 	err := r.db.QueryRow(ctx, `
 		SELECT u.id, u.verif_status_id, s.code, u.full_name, u.is_active,
-		       u.created_at, u.updated_at
+		       u.created_at, u.updated_at, u.active_role
 		FROM kerjantara.mst_users u
 		JOIN kerjantara.ref_verif_statuses s ON u.verif_status_id = s.id
 		WHERE u.id = $1 AND u.deleted_at IS NULL
 	`, supabaseID).Scan(&u.ID, &u.VerifStatusID, &u.VerifStatus, &u.FullName, &u.IsActive,
-		&u.CreatedAt, &u.UpdatedAt)
+		&u.CreatedAt, &u.UpdatedAt, &u.ActiveRole)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -518,4 +520,13 @@ func (r *Repository) ReviewVerification(ctx context.Context, userID string, deci
 	// Oh, di schema, decision note bisa dikirim via WebSocket atau dicatat di log. Namun, untuk MVP, kita update verif_status saja.
 
 	return tx.Commit(ctx)
+}
+
+func (r *Repository) UpdateActiveRole(ctx context.Context, userID, activeRole string) error {
+	_, err := r.db.Exec(ctx, `
+		UPDATE kerjantara.mst_users
+		SET active_role = $1, updated_at = now()
+		WHERE id = $2
+	`, activeRole, userID)
+	return err
 }
