@@ -149,6 +149,81 @@ func (r *Repository) CreateUser(ctx context.Context, u *User, initialRoleCode st
 	return u, nil
 }
 
+// CreateUserFromGoogle membuat user baru dari Google OAuth.
+// Menerima UUID dari Supabase sebagai primary key, tidak auto-generate.
+// Menggunakan ON CONFLICT agar tidak bentrok dengan trigger handle_new_user di DB.
+func (r *Repository) CreateUserFromGoogle(ctx context.Context, userID, fullName, phone string) (*User, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	var verifStatusID int
+	err = tx.QueryRow(ctx, "SELECT id FROM kerjantara.ref_verif_statuses WHERE code = 'pending'").Scan(&verifStatusID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending status: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO kerjantara.mst_users (id, verif_status_id, full_name, phone, password_hash, is_active)
+		VALUES ($1, $2, $3, $4, '', true)
+		ON CONFLICT (id) DO UPDATE
+		SET full_name = COALESCE(NULLIF(EXCLUDED.full_name, ''), kerjantara.mst_users.full_name),
+		    phone = CASE WHEN kerjantara.mst_users.phone = '' THEN EXCLUDED.phone ELSE kerjantara.mst_users.phone END,
+		    updated_at = now()
+	`, userID, verifStatusID, fullName, phone)
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert google user: %w", err)
+	}
+
+	var roleID int
+	err = tx.QueryRow(ctx, "SELECT id FROM kerjantara.ref_user_roles WHERE code = 'worker'").Scan(&roleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get role ID: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO kerjantara.mst_user_roles (user_id, role_id, is_primary)
+		VALUES ($1, $2, true)
+		ON CONFLICT (user_id, role_id) DO NOTHING
+	`, userID, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert user role: %w", err)
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO kerjantara.mst_worker_profiles (user_id, kerjantara_score, total_jobs_done, avg_response_min, is_available)
+		VALUES ($1, 0.00, 0, 0, false)
+		ON CONFLICT (user_id) DO NOTHING
+	`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert worker profile: %w", err)
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Re-fetch user untuk memastikan data terbaru (trigger mungkin sudah insert duluan)
+	u, err := r.GetUserByID(ctx, userID)
+	if err != nil || u == nil {
+		u = &User{
+			ID:            userID,
+			VerifStatusID: int(verifStatusID),
+			VerifStatus:   "pending",
+			FullName:      fullName,
+			Phone:         phone,
+			IsActive:      true,
+			ActiveRole:    "worker",
+			Roles:         []string{"worker"},
+		}
+	}
+
+	return u, nil
+}
+
 func (r *Repository) GetUserByPhone(ctx context.Context, phone string) (*User, error) {
 	u := &User{}
 	var lat, lng sql.NullFloat64

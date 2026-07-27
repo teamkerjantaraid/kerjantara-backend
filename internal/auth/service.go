@@ -121,7 +121,44 @@ func (s *Service) GoogleLogin(ctx context.Context, supabaseAccessToken string) (
 		return nil, "", time.Time{}, fmt.Errorf("gagal mencari user: %w", err)
 	}
 	if u == nil {
-		return nil, "", time.Time{}, errors.New("user tidak ditemukan, silakan registrasi terlebih dahulu")
+		// Auto-register user dari Google token claims
+		var emailClaim, nameClaim string
+		_ = token.Get("email", &emailClaim)
+		_ = token.Get("name", &nameClaim)
+
+		var userMeta map[string]interface{}
+		_ = token.Get("user_metadata", &userMeta)
+
+		emailStr := emailClaim
+
+		fullName := nameClaim
+		if fullName == "" {
+			if fn, exists := userMeta["full_name"]; exists {
+				fullName = fmt.Sprintf("%v", fn)
+			} else if fn, exists := userMeta["name"]; exists {
+				fullName = fmt.Sprintf("%v", fn)
+			}
+		}
+
+		if fullName == "" {
+			if emailStr != "" {
+				fullName = emailStr
+			} else {
+				fullName = "Pengguna Google"
+			}
+		}
+
+		// Gunakan email sebagai phone untuk uniqueness (phone wajib di schema)
+		phone := emailStr
+		if phone == "" {
+			phone = fmt.Sprintf("google_%s", sub[:12])
+		}
+
+		log.Printf("[GoogleLogin] auto-registering user: sub=%s name=%s phone=%s", sub, fullName, phone)
+		u, err = s.repo.CreateUserFromGoogle(ctx, sub, fullName, phone)
+		if err != nil {
+			return nil, "", time.Time{}, fmt.Errorf("gagal membuat akun dari Google: %w", err)
+		}
 	}
 
 	// Tentukan active role — boleh kosong jika user belum assign role
