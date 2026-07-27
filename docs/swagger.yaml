@@ -374,10 +374,10 @@ host: localhost:8080
 info:
   contact: {}
   description: Backend monolith modular untuk platform jasa informal Kerjantara.id.
-    API ini menghubungkan employer dengan worker melalui matching engine berbasis
-    GPS dan skor reputasi.
+    Menghubungkan employer dengan worker melalui matching engine berbasis GPS, skor
+    reputasi, multi-day job support, dan pembayaran escrow Midtrans.
   title: Kerjantara Backend API
-  version: v3.3-hackathon
+  version: v3.4.0
 paths:
   /admin/ktp/{user_id}/review:
     patch:
@@ -819,6 +819,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/docs.ErrorEnvelope'
+        "403":
+          description: KTP_NOT_VERIFIED / WORKER_NOT_AVAILABLE
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
         "409":
           description: JOB_TAKEN — job sudah diterima worker lain
           schema:
@@ -945,6 +949,89 @@ paths:
       security:
       - BearerAuth: []
       summary: Employer mengkonfirmasi pekerjaan selesai
+      tags:
+      - Job
+  /jobs/{id}/days/{day_number}/complete:
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Untuk job dengan duration_days > 1. Pekerja upload bukti pekerjaan
+        per hari. Hari terakhir tetap pakai endpoint ini.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Hari ke-berapa (1..duration_days)
+        in: path
+        name: day_number
+        required: true
+        type: integer
+      - description: Foto bukti (min 1, max 5, total max 20MB)
+        in: formData
+        name: proof_photos
+        required: true
+        type: file
+      - description: Catatan hari ini
+        in: formData
+        name: notes
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Pekerja upload bukti selesai per hari (multi-day job)
+      tags:
+      - Job
+  /jobs/{id}/days/{day_number}/confirm:
+    patch:
+      consumes:
+      - application/json
+      description: Untuk job dengan duration_days > 1. Employer konfirmasi pekerjaan
+        per hari. Konfirmasi hari terakhir otomatis menyelesaikan job.
+      parameters:
+      - description: Job ID (UUID)
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Hari ke-berapa (1..duration_days)
+        in: path
+        name: day_number
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/docs.SuccessEnvelope'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/docs.ErrorEnvelope'
+      security:
+      - BearerAuth: []
+      summary: Pemberi kerja konfirmasi hari ke-N selesai (multi-day job)
       tags:
       - Job
   /jobs/{id}/match-fallback:

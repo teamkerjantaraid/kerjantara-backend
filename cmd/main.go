@@ -28,8 +28,8 @@ import (
 )
 
 // @title           Kerjantara Backend API
-// @version         v3.3-hackathon
-// @description     Backend monolith modular untuk platform jasa informal Kerjantara.id. API ini menghubungkan employer dengan worker melalui matching engine berbasis GPS dan skor reputasi.
+// @version         v3.4.0
+// @description     Backend monolith modular untuk platform jasa informal Kerjantara.id. Menghubungkan employer dengan worker melalui matching engine berbasis GPS, skor reputasi, multi-day job support, dan pembayaran escrow Midtrans.
 // @host            localhost:8080
 // @BasePath        /
 
@@ -136,7 +136,7 @@ func main() {
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"running","service":"kerjantara-backend-monolith","version":"v3.3-hackathon"}`))
+		_, _ = w.Write([]byte(`{"status":"running","service":"kerjantara-backend-monolith","version":"v3.4.0"}`))
 	})
 
 	// Auth Middleware

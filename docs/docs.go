@@ -820,6 +820,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/docs.ErrorEnvelope"
                         }
                     },
+                    "403": {
+                        "description": "KTP_NOT_VERIFIED / WORKER_NOT_AVAILABLE",
+                        "schema": {
+                            "$ref": "#/definitions/docs.ErrorEnvelope"
+                        }
+                    },
                     "409": {
                         "description": "JOB_TAKEN — job sudah diterima worker lain",
                         "schema": {
@@ -987,6 +993,131 @@ const docTemplate = `{
                         "type": "string",
                         "description": "Job ID (UUID)",
                         "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/docs.SuccessEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/docs.ErrorEnvelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/docs.ErrorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/jobs/{id}/days/{day_number}/complete": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Untuk job dengan duration_days \u003e 1. Pekerja upload bukti pekerjaan per hari. Hari terakhir tetap pakai endpoint ini.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Job"
+                ],
+                "summary": "Pekerja upload bukti selesai per hari (multi-day job)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hari ke-berapa (1..duration_days)",
+                        "name": "day_number",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "file",
+                        "description": "Foto bukti (min 1, max 5, total max 20MB)",
+                        "name": "proof_photos",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Catatan hari ini",
+                        "name": "notes",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/docs.SuccessEnvelope"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/docs.ErrorEnvelope"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/docs.ErrorEnvelope"
+                        }
+                    }
+                }
+            }
+        },
+        "/jobs/{id}/days/{day_number}/confirm": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Untuk job dengan duration_days \u003e 1. Employer konfirmasi pekerjaan per hari. Konfirmasi hari terakhir otomatis menyelesaikan job.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Job"
+                ],
+                "summary": "Pemberi kerja konfirmasi hari ke-N selesai (multi-day job)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Job ID (UUID)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Hari ke-berapa (1..duration_days)",
+                        "name": "day_number",
                         "in": "path",
                         "required": true
                     }
@@ -2139,12 +2270,12 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "v3.3-hackathon",
+	Version:          "v3.4.0",
 	Host:             "localhost:8080",
 	BasePath:         "/",
 	Schemes:          []string{},
 	Title:            "Kerjantara Backend API",
-	Description:      "Backend monolith modular untuk platform jasa informal Kerjantara.id. API ini menghubungkan employer dengan worker melalui matching engine berbasis GPS dan skor reputasi.",
+	Description:      "Backend monolith modular untuk platform jasa informal Kerjantara.id. Menghubungkan employer dengan worker melalui matching engine berbasis GPS, skor reputasi, multi-day job support, dan pembayaran escrow Midtrans.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
